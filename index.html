@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swedish B1 Accelerator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+  body { font-family: 'Inter', sans-serif; }
+  .card-flip { perspective: 1000px; }
+  .card-inner { transition: transform 0.5s; transform-style: preserve-3d; }
+  .card-inner.flipped { transform: rotateY(180deg); }
+  .card-front, .card-back { backface-visibility: hidden; }
+  .card-back { transform: rotateY(180deg); }
+  .fade-in { animation: fadeIn 0.3s ease-in; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .streak-glow { box-shadow: 0 0 20px rgba(234, 179, 8, 0.3); }
+  .correct-flash { animation: correctPulse 0.4s ease-out; }
+  @keyframes correctPulse { 0% { background-color: rgb(34, 197, 94); } 100% { background-color: transparent; } }
+  .wrong-flash { animation: wrongPulse 0.4s ease-out; }
+  @keyframes wrongPulse { 0% { background-color: rgb(239, 68, 68); } 100% { background-color: transparent; } }
+</style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+<div id="root"></div>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="text/babel">
+
+// ============================================================
+// SWEDISH VERB DATABASE — Top 65 verbs for A2 to B1
+// Format: [infinitiv, presens, preteritum, supinum, imperativ, english]
+// Compound tenses are derived:
+//   Perfekt = har + supinum
+//   Pluskvamperfekt = hade + supinum
+//   Futurum = ska + infinitiv
+// ============================================================
+const VERBS = [
+  // Group 1 verbs (-ar)
+  ["tala", "talar", "talade", "talat", "tala", "to speak"],
+  ["arbeta", "arbetar", "arbetade", "arbetat", "arbeta", "to work"],
+  ["handla", "handlar", "handlade", "handlat", "handla", "to shop / to act"],
+  ["laga", "lagar", "lagade", "lagat", "laga", "to cook / to fix"],
+  ["titta", "tittar", "tittade", "tittat", "titta", "to look / to watch"],
+  ["prata", "pratar", "pratade", "pratat", "prata", "to talk / to chat"],
+  ["betala", "betalar", "betalade", "betalat", "betala", "to pay"],
+  ["fråga", "frågar", "frågade", "frågat", "fråga", "to ask"],
+  ["svara", "svarar", "svarade", "svarat", "svara", "to answer"],
+  ["öppna", "öppnar", "öppnade", "öppnat", "öppna", "to open"],
+  ["stänga", "stänger", "stängde", "stängt", "stäng", "to close"],
+  ["börja", "börjar", "började", "börjat", "börja", "to begin"],
+  ["sluta", "slutar", "slutade", "slutat", "sluta", "to stop / to end"],
+  ["använda", "använder", "använde", "använt", "använd", "to use"],
+  ["behöva", "behöver", "behövde", "behövt", "behöv", "to need"],
+  ["älska", "älskar", "älskade", "älskat", "älska", "to love"],
+  ["hata", "hatar", "hatade", "hatat", "hata", "to hate"],
+  ["resa", "reser", "reste", "rest", "res", "to travel"],
+  ["leva", "lever", "levde", "levt", "lev", "to live (be alive)"],
+  ["spela", "spelar", "spelade", "spelat", "spela", "to play"],
+  ["träna", "tränar", "tränade", "tränat", "träna", "to exercise / to train"],
+  ["studera", "studerar", "studerade", "studerat", "studera", "to study"],
+  ["berätta", "berättar", "berättade", "berättat", "berätta", "to tell / to narrate"],
+  ["förklara", "förklarar", "förklarade", "förklarat", "förklara", "to explain"],
+  ["försöka", "försöker", "försökte", "försökt", "försök", "to try"],
+
+  // Group 2 verbs (-er)
+  ["ringa", "ringer", "ringde", "ringt", "ring", "to call / to ring"],
+  ["köpa", "köper", "köpte", "köpt", "köp", "to buy"],
+  ["läsa", "läser", "läste", "läst", "läs", "to read"],
+  ["köra", "kör", "körde", "kört", "kör", "to drive"],
+  ["bygga", "bygger", "byggde", "byggt", "bygg", "to build"],
+  ["följa", "följer", "följde", "följt", "följ", "to follow"],
+  ["känna", "känner", "kände", "känt", "känn", "to feel / to know (someone)"],
+  ["lära", "lär", "lärde", "lärt", "lär", "to teach / to learn"],
+  ["höra", "hör", "hörde", "hört", "hör", "to hear"],
+  ["glömma", "glömmer", "glömde", "glömt", "glöm", "to forget"],
+  ["tycka", "tycker", "tyckte", "tyckt", "tyck", "to think (opinion)"],
+  ["tänka", "tänker", "tänkte", "tänkt", "tänk", "to think (reflect)"],
+
+  // Group 3 verbs (-r)
+  ["bo", "bor", "bodde", "bott", "bo", "to live (reside)"],
+  ["tro", "tror", "trodde", "trott", "tro", "to believe"],
+  ["må", "mår", "mådde", "mått", "må", "to feel (health)"],
+  ["sy", "syr", "sydde", "sytt", "sy", "to sew"],
+
+  // Group 4 — Strong / Irregular verbs
+  ["skriva", "skriver", "skrev", "skrivit", "skriv", "to write"],
+  ["dricka", "dricker", "drack", "druckit", "drick", "to drink"],
+  ["ge", "ger", "gav", "gett", "ge", "to give"],
+  ["ta", "tar", "tog", "tagit", "ta", "to take"],
+  ["komma", "kommer", "kom", "kommit", "kom", "to come"],
+  ["gå", "går", "gick", "gått", "gå", "to go / to walk"],
+  ["se", "ser", "såg", "sett", "se", "to see"],
+  ["göra", "gör", "gjorde", "gjort", "gör", "to do / to make"],
+  ["säga", "säger", "sa", "sagt", "säg", "to say"],
+  ["veta", "vet", "visste", "vetat", "vet", "to know (fact)"],
+  ["vara", "är", "var", "varit", "var", "to be"],
+  ["ha", "har", "hade", "haft", "ha", "to have"],
+  ["bli", "blir", "blev", "blivit", "bli", "to become"],
+  ["kunna", "kan", "kunde", "kunnat", "-", "can / to be able to"],
+  ["vilja", "vill", "ville", "velat", "-", "to want"],
+  ["ska", "ska", "skulle", "-", "-", "shall / will"],
+  ["få", "får", "fick", "fått", "få", "to get / may"],
+  ["äta", "äter", "åt", "ätit", "ät", "to eat"],
+  ["sova", "sover", "sov", "sovit", "sov", "to sleep"],
+  ["ligga", "ligger", "låg", "legat", "ligg", "to lie (position)"],
+  ["sitta", "sitter", "satt", "suttit", "sitt", "to sit"],
+  ["stå", "står", "stod", "stått", "stå", "to stand"],
+  ["sätta", "sätter", "satte", "satt", "sätt", "to put / to set"],
+  ["lägga", "lägger", "la/lade", "lagt", "lägg", "to put / to lay"],
+  ["hitta", "hittar", "hittade", "hittat", "hitta", "to find"],
+  ["förstå", "förstår", "förstod", "förstått", "förstå", "to understand"],
+  ["finnas", "finns", "fanns", "funnits", "-", "to exist / there is"],
+];
+
+// ============================================================
+// ALL TENSES — base forms + compound tenses derived from them
+// ============================================================
+// Base form indices: 0=infinitiv, 1=presens, 2=preteritum, 3=supinum, 4=imperativ
+// Compound tenses are computed:
+const ALL_TENSES = [
+  { key: "infinitiv",        label: "Infinitiv / Infinitive",              color: "text-blue-400",    getForm: (v) => v[0] !== "-" ? v[0] : null },
+  { key: "presens",          label: "Presens / Present",                   color: "text-green-400",   getForm: (v) => v[1] !== "-" ? v[1] : null },
+  { key: "preteritum",       label: "Preteritum / Simple Past",            color: "text-yellow-400",  getForm: (v) => v[2] !== "-" ? v[2] : null },
+  { key: "perfekt",          label: "Perfekt / Present Perfect",           color: "text-teal-400",    getForm: (v) => v[3] !== "-" ? `har ${v[3]}` : null },
+  { key: "pluskvamperfekt",   label: "Pluskvamperfekt / Past Perfect",      color: "text-orange-400",  getForm: (v) => v[3] !== "-" ? `hade ${v[3]}` : null },
+  { key: "futurum",          label: "Futurum / Future",                    color: "text-pink-400",    getForm: (v) => v[0] !== "-" ? `ska ${v[0]}` : null },
+  { key: "supinum",          label: "Supinum / Past Participle",           color: "text-purple-400",  getForm: (v) => v[3] !== "-" ? v[3] : null },
+  { key: "imperativ",        label: "Imperativ / Imperative",              color: "text-red-400",     getForm: (v) => v[4] !== "-" ? v[4] : null },
+];
+
+// ============================================================
+// VOCABULARY DATABASE — High-frequency A2 to B1 words by topic
+// Format: [swedish, english, gender/class, example sentence]
+// ============================================================
+const VOCAB = {
+  "Everyday Life": [
+    ["möjlighet", "opportunity / possibility", "en", "Det finns en möjlighet att resa dit."],
+    ["erfarenhet", "experience", "en", "Hon har mycket erfarenhet."],
+    ["förändring", "change", "en", "Det var en stor förändring."],
+    ["skillnad", "difference", "en", "Vad är skillnaden?"],
+    ["anledning", "reason", "en", "Vad är anledningen?"],
+    ["utveckling", "development", "en", "Utvecklingen går snabbt."],
+    ["uppgift", "task / assignment", "en", "Jag har en viktig uppgift."],
+    ["mening", "meaning / sentence", "en", "Vad är meningen med det?"],
+    ["samhälle", "society", "ett", "Vi lever i ett modernt samhälle."],
+    ["beslut", "decision", "ett", "Det var ett svårt beslut."],
+    ["förslag", "suggestion / proposal", "ett", "Har du ett förslag?"],
+    ["mål", "goal", "ett", "Mitt mål är att lära mig svenska."],
+    ["steg", "step", "ett", "Det är ett viktigt steg."],
+    ["val", "choice / election", "ett", "Det var mitt val."],
+    ["innehåll", "content", "ett", "Innehållet var intressant."],
+  ],
+  "Opinions & Feelings": [
+    ["nöjd", "satisfied", "adj", "Jag är nöjd med resultatet."],
+    ["besviken", "disappointed", "adj", "Hon var besviken."],
+    ["orolig", "worried", "adj", "Jag är orolig för provet."],
+    ["stolt", "proud", "adj", "Han är stolt över sitt arbete."],
+    ["nyfiken", "curious", "adj", "Barnet var nyfiken."],
+    ["lugn", "calm", "adj", "Försök att vara lugn."],
+    ["ledsen", "sad", "adj", "Varför är du ledsen?"],
+    ["arg", "angry", "adj", "Hon blev arg."],
+    ["rädd", "afraid / scared", "adj", "Jag är rädd för hundar."],
+    ["ensam", "alone / lonely", "adj", "Han kände sig ensam."],
+    ["stressad", "stressed", "adj", "Jag har varit stressad."],
+    ["tacksam", "grateful", "adj", "Jag är tacksam för hjälpen."],
+    ["upplevelse", "experience (emotional)", "en", "Det var en fantastisk upplevelse."],
+    ["känsla", "feeling", "en", "Det var en konstig känsla."],
+    ["åsikt", "opinion", "en", "Vad är din åsikt?"],
+  ],
+  "Work & Study": [
+    ["utbildning", "education", "en", "Utbildningen tar tre år."],
+    ["kurs", "course", "en", "Jag går en kurs i svenska."],
+    ["kunskap", "knowledge", "en", "Kunskap är makt."],
+    ["lön", "salary", "en", "Lönen är bra."],
+    ["chef", "boss / manager", "en", "Min chef är snäll."],
+    ["ansökan", "application", "en", "Jag skickade en ansökan."],
+    ["möte", "meeting", "ett", "Vi har ett möte klockan tre."],
+    ["projekt", "project", "ett", "Projektet är nästan klart."],
+    ["företag", "company", "ett", "Hon jobbar på ett stort företag."],
+    ["ansvar", "responsibility", "ett", "Det är mitt ansvar."],
+    ["avtal", "agreement / contract", "ett", "Vi skrev ett avtal."],
+    ["schema", "schedule", "ett", "Mitt schema är fullt."],
+  ],
+  "Connectors & Adverbs": [
+    ["dessutom", "besides / moreover", "adv", "Dessutom är det billigt."],
+    ["alltså", "so / therefore", "adv", "Du kommer alltså inte?"],
+    ["faktiskt", "actually", "adv", "Det var faktiskt ganska bra."],
+    ["tydligen", "apparently", "adv", "Tydligen kommer han inte."],
+    ["förmodligen", "probably", "adv", "Det är förmodligen sant."],
+    ["trots", "despite", "prep", "Trots regnet gick vi ut."],
+    ["enligt", "according to", "prep", "Enligt rapporten var det bra."],
+    ["dock", "however", "adv", "Det var dock inte lätt."],
+    ["egentligen", "actually / really", "adv", "Vad vill du egentligen?"],
+    ["nämligen", "namely / you see", "adv", "Jag kan inte komma, jag är nämligen sjuk."],
+    ["snarare", "rather", "adv", "Det är snarare tvärtom."],
+    ["ändå", "still / anyway", "adv", "Det regnade men vi gick ändå."],
+    ["knappast", "hardly", "adv", "Det är knappast möjligt."],
+    ["åtminstone", "at least", "adv", "Åtminstone försökte du."],
+    ["däremot", "on the other hand", "adv", "Jag gillar kaffe, däremot inte te."],
+  ],
+  "Health & Body": [
+    ["sjukdom", "illness / disease", "en", "Det är en allvarlig sjukdom."],
+    ["medicin", "medicine", "en", "Tar du någon medicin?"],
+    ["smärta", "pain", "en", "Han har smärta i ryggen."],
+    ["hälsa", "health", "en", "Din hälsa är viktig."],
+    ["undersökning", "examination", "en", "Läkaren gjorde en undersökning."],
+    ["recept", "prescription / recipe", "ett", "Jag fick ett recept av läkaren."],
+    ["sjukhus", "hospital", "ett", "Han ligger på sjukhus."],
+    ["blod", "blood", "ett", "De tog ett blodprov."],
+  ],
+  "Nature & Environment": [
+    ["klimat", "climate", "ett", "Klimatet förändras."],
+    ["miljö", "environment", "en", "Vi måste skydda miljön."],
+    ["energi", "energy", "en", "Solenergi är förnybar."],
+    ["utsläpp", "emissions", "ett", "Vi måste minska utsläppen."],
+    ["avfall", "waste", "ett", "Sortera ditt avfall."],
+    ["brist", "shortage / lack", "en", "Det finns en brist på vatten."],
+    ["resurs", "resource", "en", "Naturresurser är begränsade."],
+  ],
+};
+
+// ============================================================
+// SPACED REPETITION ENGINE
+// ============================================================
+const SRS = {
+  INTERVALS: [0, 1, 3, 7, 14, 30, 60],
+  load() {
+    try { return JSON.parse(localStorage.getItem('swedish_srs') || '{}'); }
+    catch { return {}; }
+  },
+  save(data) { localStorage.setItem('swedish_srs', JSON.stringify(data)); },
+  getCard(id) {
+    const data = this.load();
+    return data[id] || { box: 0, nextReview: 0, correct: 0, wrong: 0 };
+  },
+  updateCard(id, correct) {
+    const data = this.load();
+    const card = data[id] || { box: 0, nextReview: 0, correct: 0, wrong: 0 };
+    if (correct) {
+      card.box = Math.min(card.box + 1, this.INTERVALS.length - 1);
+      card.correct++;
+    } else {
+      card.box = Math.max(card.box - 1, 0);
+      card.wrong++;
+    }
+    const days = this.INTERVALS[card.box];
+    card.nextReview = Date.now() + days * 86400000;
+    data[id] = card;
+    this.save(data);
+  },
+  getDueCards(ids) {
+    const data = this.load();
+    const now = Date.now();
+    return ids.filter(id => {
+      const card = data[id];
+      return !card || card.nextReview <= now;
+    });
+  },
+  getStats() {
+    const data = this.load();
+    const entries = Object.values(data);
+    return {
+      total: entries.length,
+      mastered: entries.filter(c => c.box >= 5).length,
+      learning: entries.filter(c => c.box > 0 && c.box < 5).length,
+      newOrWeak: entries.filter(c => c.box === 0).length,
+      totalCorrect: entries.reduce((s, c) => s + c.correct, 0),
+      totalWrong: entries.reduce((s, c) => s + c.wrong, 0),
+    };
+  },
+  reset() { localStorage.removeItem('swedish_srs'); },
+};
+
+// ============================================================
+// HELPERS
+// ============================================================
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function getVerbForm(verb, tenseIdx) {
+  return ALL_TENSES[tenseIdx].getForm(verb);
+}
+
+// ============================================================
+// COMPONENTS
+// ============================================================
+const { useState, useEffect, useCallback, useMemo, useRef } = React;
+
+// ---- Nav ----
+function Nav({ view, setView, stats }) {
+  const tabs = [
+    ["study", "Study"],
+    ["verbs", "Verb Drills"],
+    ["vocab", "Vocabulary"],
+    ["reference", "Reference"],
+    ["stats", "Progress"],
+  ];
+  return (
+    <nav className="bg-gray-900 border-b border-gray-800 sticky top-0 z-50">
+      <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-xl font-bold text-blue-400">SE</span>
+          <span className="text-sm text-gray-400 hidden sm:inline">A2 &rarr; B1</span>
+        </div>
+        <div className="flex gap-1 flex-wrap">
+          {tabs.map(([key, label]) => (
+            <button key={key} onClick={() => setView(key)}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                view === key ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+              }`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {stats.total > 0 && (
+          <div className="hidden md:flex items-center gap-3 text-xs text-gray-500">
+            <span className="text-green-400">{stats.mastered} mastered</span>
+            <span className="text-yellow-400">{stats.learning} learning</span>
+          </div>
+        )}
+      </div>
+    </nav>
+  );
+}
+
+// ---- Study Mode (Smart Review) ----
+function StudyMode() {
+  const allIds = useMemo(() => {
+    const ids = [];
+    VERBS.forEach((v, i) => {
+      ALL_TENSES.forEach((t, ti) => {
+        if (t.getForm(v) !== null) ids.push(`verb:${i}:${ti}`);
+      });
+    });
+    Object.entries(VOCAB).forEach(([cat, words]) => {
+      words.forEach((w, i) => ids.push(`vocab:${cat}:${i}`));
+    });
+    return ids;
+  }, []);
+
+  const [queue, setQueue] = useState([]);
+  const [current, setCurrent] = useState(null);
+  const [input, setInput] = useState('');
+  const [feedback, setFeedback] = useState(null);
+  const [streak, setStreak] = useState(0);
+  const [sessionStats, setSessionStats] = useState({ correct: 0, wrong: 0 });
+  const inputRef = useRef(null);
+
+  const buildQueue = useCallback(() => {
+    let due = SRS.getDueCards(allIds);
+    if (due.length === 0) due = allIds;
+    const shuffled = shuffle(due).slice(0, 20);
+    setQueue(shuffled);
+    return shuffled;
+  }, [allIds]);
+
+  useEffect(() => {
+    const q = buildQueue();
+    if (q.length > 0) setCurrent(q[0]);
+  }, []);
+
+  useEffect(() => {
+    if (feedback === null && inputRef.current) inputRef.current.focus();
+  }, [current, feedback]);
+
+  const parseId = (id) => {
+    if (!id) return null;
+    const parts = id.split(':');
+    if (parts[0] === 'verb') {
+      const vi = parseInt(parts[1]);
+      const ti = parseInt(parts[2]);
+      const verb = VERBS[vi];
+      const tense = ALL_TENSES[ti];
+      const form = tense.getForm(verb);
+      return {
+        type: 'verb',
+        question: `${verb[5]} - ${tense.label}`,
+        answer: form,
+        hint: verb[0],
+        tense: tense.label,
+        tenseColor: tense.color,
+      };
+    } else {
+      const cat = parts[1];
+      const wi = parseInt(parts[2]);
+      const word = VOCAB[cat][wi];
+      return {
+        type: 'vocab',
+        question: word[1],
+        answer: word[0],
+        hint: word[2] === 'en' || word[2] === 'ett' ? `(${word[2]}) - ${word[3]}` : word[3],
+        category: cat,
+      };
+    }
+  };
+
+  const advance = () => {
+    setFeedback(null);
+    setInput('');
+    const idx = queue.indexOf(current);
+    if (idx < queue.length - 1) {
+      setCurrent(queue[idx + 1]);
+    } else {
+      const q = buildQueue();
+      setCurrent(q[0] || null);
+    }
+  };
+
+  const checkAnswer = () => {
+    const card = parseId(current);
+    if (!card) return;
+    const correct = input.trim().toLowerCase() === card.answer.toLowerCase();
+    SRS.updateCard(current, correct);
+    setFeedback({ correct, answer: card.answer });
+    setSessionStats(s => ({
+      correct: s.correct + (correct ? 1 : 0),
+      wrong: s.wrong + (correct ? 0 : 1),
+    }));
+    setStreak(correct ? streak + 1 : 0);
+  };
+
+  const handleKey = (e) => {
+    if (e.key === 'Enter') {
+      if (feedback) advance();
+      else if (input.trim()) checkAnswer();
+    }
+  };
+
+  const card = parseId(current);
+  if (!card) return (
+    <div className="text-center py-20 text-gray-400">
+      <p className="text-2xl mb-4">All caught up!</p>
+      <p>Come back later for more review.</p>
+    </div>
+  );
+
+  const progress = queue.indexOf(current) + 1;
+  const total = queue.length;
+
+  return (
+    <div className="max-w-xl mx-auto px-4 py-8 fade-in">
+      <div className="flex items-center justify-between mb-6">
+        <span className="text-sm text-gray-500">{progress}/{total}</span>
+        <div className="flex-1 mx-4 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+          <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${(progress / total) * 100}%` }} />
+        </div>
+        {streak >= 3 && (
+          <span className={`text-sm font-bold text-yellow-400 ${streak >= 5 ? 'streak-glow' : ''} px-2 py-0.5 rounded`}>
+            {streak} streak
+          </span>
+        )}
+      </div>
+
+      <div className={`bg-gray-900 rounded-xl p-8 border border-gray-800 ${feedback?.correct === true ? 'correct-flash' : ''} ${feedback?.correct === false ? 'wrong-flash' : ''}`}>
+        <div className="text-center mb-6">
+          {card.type === 'verb' && (
+            <span className={`text-xs font-medium px-2 py-0.5 rounded ${card.tenseColor} bg-gray-800`}>
+              {card.tense}
+            </span>
+          )}
+          {card.type === 'vocab' && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded text-cyan-400 bg-gray-800">
+              {card.category}
+            </span>
+          )}
+        </div>
+        <p className="text-2xl font-semibold text-center mb-2">{card.question}</p>
+        <p className="text-sm text-gray-500 text-center mb-8">{card.hint}</p>
+
+        <input
+          ref={inputRef}
+          type="text"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={handleKey}
+          disabled={feedback !== null}
+          placeholder="Type the Swedish..."
+          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-center text-lg
+            focus:outline-none focus:border-blue-500 disabled:opacity-50"
+          autoComplete="off" autoCorrect="off" spellCheck="false"
+        />
+
+        {feedback && (
+          <div className="mt-6 text-center fade-in">
+            {feedback.correct ? (
+              <p className="text-green-400 text-lg font-semibold">Correct!</p>
+            ) : (
+              <div>
+                <p className="text-red-400 text-lg font-semibold mb-1">Not quite</p>
+                <p className="text-gray-300">Correct answer: <span className="font-bold text-white">{feedback.answer}</span></p>
+              </div>
+            )}
+            <button onClick={advance}
+              className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors">
+              Next (Enter)
+            </button>
+          </div>
+        )}
+
+        {!feedback && input.trim() && (
+          <button onClick={checkAnswer}
+            className="mt-4 w-full py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors">
+            Check (Enter)
+          </button>
+        )}
+      </div>
+
+      <div className="flex justify-center gap-8 mt-6 text-sm text-gray-500">
+        <span className="text-green-400">{sessionStats.correct} correct</span>
+        <span className="text-red-400">{sessionStats.wrong} wrong</span>
+        <span>{Math.round((sessionStats.correct / Math.max(1, sessionStats.correct + sessionStats.wrong)) * 100)}% accuracy</span>
+      </div>
+    </div>
+  );
+}
+
+// ---- Verb Drills (all 8 tenses) ----
+function VerbDrills() {
+  const [verbIdx, setVerbIdx] = useState(null);
+  const [answers, setAnswers] = useState({});
+  const [checked, setChecked] = useState(false);
+  const [score, setScore] = useState(null);
+
+  const startDrill = () => {
+    setVerbIdx(Math.floor(Math.random() * VERBS.length));
+    setAnswers({});
+    setChecked(false);
+    setScore(null);
+  };
+
+  useEffect(() => { startDrill(); }, []);
+
+  const verb = verbIdx !== null ? VERBS[verbIdx] : null;
+
+  const checkAll = () => {
+    if (!verb) return;
+    let correct = 0;
+    let total = 0;
+    ALL_TENSES.forEach((t, i) => {
+      const form = t.getForm(verb);
+      if (form === null) return;
+      total++;
+      const id = `verb:${verbIdx}:${i}`;
+      const userAns = (answers[i] || '').trim().toLowerCase();
+      const isCorrect = userAns === form.toLowerCase();
+      if (isCorrect) correct++;
+      SRS.updateCard(id, isCorrect);
+    });
+    setChecked(true);
+    setScore({ correct, total });
+  };
+
+  if (!verb) return null;
+
+  return (
+    <div className="max-w-xl mx-auto px-4 py-8 fade-in">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-bold">Verb Drill - All 8 Tenses</h2>
+        <button onClick={startDrill}
+          className="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-sm">
+          New Verb
+        </button>
+      </div>
+
+      <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
+        <p className="text-2xl font-bold text-center mb-1">{verb[5]}</p>
+        <p className="text-sm text-gray-500 text-center mb-6">Fill in all forms (including compound tenses)</p>
+
+        <div className="space-y-3">
+          {ALL_TENSES.map((tense, i) => {
+            const form = tense.getForm(verb);
+            if (form === null) return (
+              <div key={tense.key} className="flex items-center gap-3 opacity-40">
+                <span className={`w-36 text-sm font-medium ${tense.color}`}>{tense.label}</span>
+                <span className="text-gray-600 text-sm">&mdash;</span>
+              </div>
+            );
+            const userAns = (answers[i] || '').trim().toLowerCase();
+            const isCorrect = checked && userAns === form.toLowerCase();
+            const isWrong = checked && !isCorrect;
+            return (
+              <div key={tense.key} className="flex items-center gap-3">
+                <span className={`w-36 text-sm font-medium ${tense.color}`}>{tense.label}</span>
+                <input
+                  type="text"
+                  value={answers[i] || ''}
+                  onChange={e => setAnswers({ ...answers, [i]: e.target.value })}
+                  disabled={checked}
+                  placeholder={tense.key === 'perfekt' ? 'har + ...' : tense.key === 'pluskvamperfekt' ? 'hade + ...' : tense.key === 'futurum' ? 'ska + ...' : ''}
+                  className={`flex-1 bg-gray-800 border rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500
+                    ${isCorrect ? 'border-green-500 text-green-400' : ''}
+                    ${isWrong ? 'border-red-500 text-red-400' : 'border-gray-700'}
+                    disabled:opacity-70`}
+                  autoComplete="off" autoCorrect="off" spellCheck="false"
+                />
+                {isWrong && <span className="text-sm text-green-400 font-medium whitespace-nowrap">{form}</span>}
+                {isCorrect && <span className="text-green-400 text-sm">&#10003;</span>}
+              </div>
+            );
+          })}
+        </div>
+
+        {!checked ? (
+          <button onClick={checkAll}
+            className="mt-6 w-full py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium">
+            Check All
+          </button>
+        ) : (
+          <div className="mt-6 text-center">
+            <p className={`text-lg font-bold ${score.correct === score.total ? 'text-green-400' : 'text-yellow-400'}`}>
+              {score.correct}/{score.total} correct
+            </p>
+            <button onClick={startDrill}
+              className="mt-3 px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium">
+              Next Verb
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Tense formation reminder */}
+      <div className="mt-6 bg-gray-900/50 rounded-lg p-4 border border-gray-800 text-xs text-gray-500 space-y-1">
+        <p><span className="text-teal-400">Perfekt:</span> har + supinum &rarr; <i>Jag har ätit</i> (I have eaten)</p>
+        <p><span className="text-orange-400">Pluskvamperfekt:</span> hade + supinum &rarr; <i>Jag hade ätit</i> (I had eaten)</p>
+        <p><span className="text-pink-400">Futurum:</span> ska + infinitiv &rarr; <i>Jag ska äta</i> (I will eat)</p>
+      </div>
+    </div>
+  );
+}
+
+// ---- Vocabulary Practice ----
+function VocabPractice() {
+  const categories = Object.keys(VOCAB);
+  const [selectedCat, setSelectedCat] = useState(categories[0]);
+  const [direction, setDirection] = useState('en2sv');
+  const [cardIdx, setCardIdx] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+  const [shuffledWords, setShuffledWords] = useState([]);
+
+  useEffect(() => {
+    setShuffledWords(shuffle(VOCAB[selectedCat]));
+    setCardIdx(0);
+    setFlipped(false);
+  }, [selectedCat]);
+
+  const word = shuffledWords[cardIdx];
+  if (!word) return null;
+
+  const front = direction === 'en2sv' ? word[1] : word[0];
+  const back = direction === 'en2sv' ? word[0] : word[1];
+  const id = `vocab:${selectedCat}:${VOCAB[selectedCat].indexOf(word)}`;
+  const gender = word[2];
+
+  const rate = (correct) => {
+    SRS.updateCard(id, correct);
+    setFlipped(false);
+    if (cardIdx < shuffledWords.length - 1) {
+      setCardIdx(cardIdx + 1);
+    } else {
+      setShuffledWords(shuffle(VOCAB[selectedCat]));
+      setCardIdx(0);
+    }
+  };
+
+  return (
+    <div className="max-w-xl mx-auto px-4 py-8 fade-in">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <h2 className="text-xl font-bold">Vocabulary</h2>
+        <button onClick={() => setDirection(d => d === 'en2sv' ? 'sv2en' : 'en2sv')}
+          className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs">
+          {direction === 'en2sv' ? 'EN &rarr; SV' : 'SV &rarr; EN'}
+        </button>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-6">
+        {categories.map(cat => (
+          <button key={cat} onClick={() => setSelectedCat(cat)}
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+              selectedCat === cat ? 'bg-cyan-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+            }`}>
+            {cat}
+          </button>
+        ))}
+      </div>
+
+      <div className="card-flip cursor-pointer" onClick={() => setFlipped(!flipped)} style={{ minHeight: 260 }}>
+        <div className={`card-inner relative w-full ${flipped ? 'flipped' : ''}`} style={{ minHeight: 260 }}>
+          <div className="card-front absolute inset-0 bg-gray-900 rounded-xl p-8 border border-gray-800 flex flex-col items-center justify-center">
+            <p className="text-sm text-gray-500 mb-4">{cardIdx + 1}/{shuffledWords.length}</p>
+            <p className="text-2xl font-semibold text-center">{front}</p>
+            {direction === 'sv2en' && (gender === 'en' || gender === 'ett') && (
+              <span className="mt-2 text-xs text-gray-500">({gender})</span>
+            )}
+            <p className="text-sm text-gray-600 mt-6">tap to flip</p>
+          </div>
+          <div className="card-back absolute inset-0 bg-gray-900 rounded-xl p-8 border border-blue-800 flex flex-col items-center justify-center">
+            <p className="text-2xl font-bold text-center text-blue-400">{back}</p>
+            {direction === 'en2sv' && (gender === 'en' || gender === 'ett') && (
+              <span className="mt-2 text-sm text-gray-400">({gender})</span>
+            )}
+            <p className="text-sm text-gray-500 mt-3 text-center italic">{word[3]}</p>
+          </div>
+        </div>
+      </div>
+
+      {flipped && (
+        <div className="flex gap-4 justify-center mt-6 fade-in">
+          <button onClick={() => rate(false)}
+            className="px-6 py-2 bg-red-900/50 hover:bg-red-800 border border-red-800 rounded-lg text-sm font-medium text-red-300">
+            Again
+          </button>
+          <button onClick={() => rate(true)}
+            className="px-6 py-2 bg-green-900/50 hover:bg-green-800 border border-green-800 rounded-lg text-sm font-medium text-green-300">
+            Got it
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Reference Table ----
+function Reference() {
+  const [search, setSearch] = useState('');
+
+  const filtered = VERBS.filter(v =>
+    v.some(form => form.toLowerCase().includes(search.toLowerCase())) ||
+    ALL_TENSES.some(t => { const f = t.getForm(v); return f && f.toLowerCase().includes(search.toLowerCase()); })
+  );
+
+  return (
+    <div className="max-w-6xl mx-auto px-4 py-8 fade-in">
+      <h2 className="text-xl font-bold mb-4">Verb Reference - All Tenses</h2>
+      <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+        placeholder="Search verbs..."
+        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 mb-4 text-sm focus:outline-none focus:border-blue-500"
+      />
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-800">
+              <th className="text-left py-2 px-2 text-gray-400 font-medium whitespace-nowrap">English</th>
+              {ALL_TENSES.map(t => (
+                <th key={t.key} className={`text-left py-2 px-2 font-medium whitespace-nowrap ${t.color}`}>{t.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((v, i) => (
+              <tr key={i} className="border-b border-gray-900 hover:bg-gray-900/50">
+                <td className="py-2 px-2 text-gray-300 whitespace-nowrap">{v[5]}</td>
+                {ALL_TENSES.map(t => (
+                  <td key={t.key} className="py-2 px-2 text-gray-100 whitespace-nowrap">{t.getForm(v) || '—'}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {filtered.length === 0 && (
+        <p className="text-center text-gray-500 py-8">No verbs match your search.</p>
+      )}
+
+      <div className="mt-8 bg-gray-900 rounded-xl p-6 border border-gray-800">
+        <h3 className="font-bold text-lg mb-3">Swedish Tense Cheat Sheet</h3>
+        <div className="space-y-3 text-sm text-gray-300">
+          <div>
+            <span className="text-blue-400 font-medium">Infinitiv:</span> Base form. Used after modal verbs (kan, vill, ska, m&aring;ste).
+            <span className="text-gray-500 ml-2">Jag vill <b>&auml;ta</b>.</span>
+          </div>
+          <div>
+            <span className="text-green-400 font-medium">Presens:</span> Present tense. Happening now or generally true.
+            <span className="text-gray-500 ml-2">Jag <b>&auml;ter</b> frukost.</span>
+          </div>
+          <div>
+            <span className="text-yellow-400 font-medium">Preteritum:</span> Simple past. Completed action.
+            <span className="text-gray-500 ml-2">Jag <b>&aring;t</b> ig&aring;r.</span>
+          </div>
+          <div>
+            <span className="text-teal-400 font-medium">Perfekt:</span> Present perfect. <b>har</b> + supinum. Past action with present relevance.
+            <span className="text-gray-500 ml-2">Jag <b>har &auml;tit</b> lunch.</span>
+          </div>
+          <div>
+            <span className="text-orange-400 font-medium">Pluskvamperfekt:</span> Past perfect. <b>hade</b> + supinum. Action completed before another past event.
+            <span className="text-gray-500 ml-2">Jag <b>hade &auml;tit</b> innan hon kom.</span>
+          </div>
+          <div>
+            <span className="text-pink-400 font-medium">Futurum:</span> Future. <b>ska</b> + infinitiv. Planned or intended action.
+            <span className="text-gray-500 ml-2">Jag <b>ska &auml;ta</b> middag.</span>
+          </div>
+          <div>
+            <span className="text-purple-400 font-medium">Supinum:</span> The verb form used in perfekt/pluskvamperfekt. Not used alone.
+            <span className="text-gray-500 ml-2">har <b>&auml;tit</b>, hade <b>skrivit</b></span>
+          </div>
+          <div>
+            <span className="text-red-400 font-medium">Imperativ:</span> Commands / requests.
+            <span className="text-gray-500 ml-2"><b>&Auml;t</b> din mat!</span>
+          </div>
+        </div>
+
+        <h4 className="font-bold mt-6 mb-2">Verb Groups</h4>
+        <div className="space-y-2 text-sm text-gray-300">
+          <div><span className="text-blue-300 font-medium">Group 1 (-ar):</span> talar, talade, talat &mdash; Most regular, largest group</div>
+          <div><span className="text-blue-300 font-medium">Group 2 (-er):</span> ringer, ringde, ringt &mdash; Second conjugation</div>
+          <div><span className="text-blue-300 font-medium">Group 3 (-r):</span> bor, bodde, bott &mdash; Short verbs</div>
+          <div><span className="text-blue-300 font-medium">Group 4 (strong):</span> skriver, skrev, skrivit &mdash; Vowel changes, must memorize</div>
+        </div>
+
+        <h4 className="font-bold mt-6 mb-2">Compound Tense Formation</h4>
+        <div className="space-y-2 text-sm text-gray-300">
+          <div><span className="text-teal-400 font-medium">Perfekt:</span> <b>har</b> + supinum &rarr; Jag har talat, du har skrivit</div>
+          <div><span className="text-orange-400 font-medium">Pluskvamperfekt:</span> <b>hade</b> + supinum &rarr; Jag hade talat, du hade skrivit</div>
+          <div><span className="text-pink-400 font-medium">Futurum:</span> <b>ska</b> + infinitiv &rarr; Jag ska tala, du ska skriva</div>
+          <div className="text-gray-500 text-xs mt-2">Also: <b>kommer att</b> + infinitiv for future (Jag kommer att tala) &mdash; more neutral/formal than ska</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---- Progress / Stats ----
+function Progress() {
+  const stats = SRS.getStats();
+  const data = SRS.load();
+  const totalCards = useMemo(() => {
+    let count = 0;
+    VERBS.forEach(v => { ALL_TENSES.forEach(t => { if (t.getForm(v) !== null) count++; }); });
+    Object.values(VOCAB).forEach(w => count += w.length);
+    return count;
+  }, []);
+  const pct = Math.round((stats.mastered / Math.max(1, totalCards)) * 100);
+  const accuracy = stats.totalCorrect + stats.totalWrong > 0
+    ? Math.round((stats.totalCorrect / (stats.totalCorrect + stats.totalWrong)) * 100) : 0;
+
+  const verbMastery = VERBS.map((v, vi) => {
+    const tenses = ALL_TENSES.map((t, ti) => {
+      if (t.getForm(v) === null) return null;
+      const card = data[`verb:${vi}:${ti}`];
+      return card ? card.box : -1;
+    });
+    return { verb: v, tenses };
+  });
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-8 fade-in">
+      <h2 className="text-xl font-bold mb-6">Your Progress</h2>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+        <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 text-center">
+          <p className="text-3xl font-bold text-blue-400">{stats.total}</p>
+          <p className="text-xs text-gray-500">Cards Seen</p>
+        </div>
+        <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 text-center">
+          <p className="text-3xl font-bold text-green-400">{stats.mastered}</p>
+          <p className="text-xs text-gray-500">Mastered</p>
+        </div>
+        <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 text-center">
+          <p className="text-3xl font-bold text-yellow-400">{stats.learning}</p>
+          <p className="text-xs text-gray-500">Learning</p>
+        </div>
+        <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 text-center">
+          <p className="text-3xl font-bold text-purple-400">{accuracy}%</p>
+          <p className="text-xs text-gray-500">Accuracy</p>
+        </div>
+      </div>
+
+      <div className="bg-gray-900 rounded-xl p-6 border border-gray-800 mb-8">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-medium">Overall Mastery</span>
+          <span className="text-sm text-gray-400">{stats.mastered}/{totalCards} ({pct}%)</span>
+        </div>
+        <div className="h-3 bg-gray-800 rounded-full overflow-hidden">
+          <div className="h-full rounded-full transition-all"
+            style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)' }} />
+        </div>
+        <p className="text-xs text-gray-500 mt-2">Master all {totalCards} cards to reach B1 verb & vocabulary proficiency</p>
+      </div>
+
+      <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
+        <h3 className="font-bold mb-4">Verb Mastery Grid (all 8 tenses)</h3>
+        <div className="overflow-x-auto">
+          <div className="grid gap-1 text-xs" style={{ minWidth: 600 }}>
+            <div className="grid grid-cols-9 gap-1 mb-1">
+              <span className="text-gray-500">Verb</span>
+              {ALL_TENSES.map(t => <span key={t.key} className={`${t.color} text-center`} title={t.label}>{t.label.slice(0,4)}</span>)}
+            </div>
+            {verbMastery.slice(0, 30).map((vm, i) => (
+              <div key={i} className="grid grid-cols-9 gap-1">
+                <span className="text-gray-400 truncate" title={vm.verb[5]}>{vm.verb[5]}</span>
+                {vm.tenses.map((box, ti) => (
+                  <div key={ti} className={`h-4 rounded text-center ${
+                    box === null ? 'bg-gray-900' :
+                    box === -1 ? 'bg-gray-800' :
+                    box === 0 ? 'bg-red-900/50' :
+                    box < 3 ? 'bg-yellow-900/50' :
+                    box < 5 ? 'bg-blue-900/50' :
+                    'bg-green-900/50'
+                  }`} />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-4 mt-3 text-xs text-gray-500">
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-800" /> New</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-900/50" /> Weak</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-900/50" /> Learning</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-900/50" /> Good</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-900/50" /> Mastered</span>
+        </div>
+      </div>
+
+      <div className="mt-8 text-center">
+        <button onClick={() => { if (confirm('Reset all progress?')) { SRS.reset(); window.location.reload(); } }}
+          className="text-xs text-gray-600 hover:text-red-400 transition-colors">
+          Reset all progress
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---- App ----
+function App() {
+  const [view, setView] = useState('study');
+  const [stats, setStats] = useState(SRS.getStats());
+
+  useEffect(() => {
+    const interval = setInterval(() => setStats(SRS.getStats()), 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="min-h-screen">
+      <Nav view={view} setView={setView} stats={stats} />
+      {view === 'study' && <StudyMode />}
+      {view === 'verbs' && <VerbDrills />}
+      {view === 'vocab' && <VocabPractice />}
+      {view === 'reference' && <Reference />}
+      {view === 'stats' && <Progress />}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
