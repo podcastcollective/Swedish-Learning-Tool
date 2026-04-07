@@ -20,6 +20,8 @@
   @keyframes correctPulse { 0% { background-color: rgb(34, 197, 94); } 100% { background-color: transparent; } }
   .wrong-flash { animation: wrongPulse 0.4s ease-out; }
   @keyframes wrongPulse { 0% { background-color: rgb(239, 68, 68); } 100% { background-color: transparent; } }
+  .speak-btn { transition: transform 0.15s; }
+  .speak-btn:active { transform: scale(0.9); }
 </style>
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen">
@@ -30,12 +32,41 @@
 <script type="text/babel">
 
 // ============================================================
-// SWEDISH VERB DATABASE — Top 65 verbs for A2 to B1
+// TEXT-TO-SPEECH
+// ============================================================
+function speak(text, lang = 'sv-SE') {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = lang;
+  u.rate = 0.85;
+  // Try to find a Swedish voice
+  const voices = window.speechSynthesis.getVoices();
+  const sv = voices.find(v => v.lang.startsWith('sv'));
+  if (sv) u.voice = sv;
+  window.speechSynthesis.speak(u);
+}
+
+// Preload voices
+if (window.speechSynthesis) {
+  window.speechSynthesis.getVoices();
+  window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+}
+
+function SpeakButton({ text, size = 'md', lang = 'sv-SE' }) {
+  const sizes = { sm: 'w-6 h-6 text-xs', md: 'w-8 h-8 text-sm', lg: 'w-10 h-10 text-base' };
+  return (
+    <button onClick={(e) => { e.stopPropagation(); speak(text, lang); }}
+      className={`speak-btn ${sizes[size]} inline-flex items-center justify-center rounded-full bg-gray-800 hover:bg-gray-700 text-blue-400 hover:text-blue-300 flex-shrink-0`}
+      title="Listen">
+      &#9654;
+    </button>
+  );
+}
+
+// ============================================================
+// SWEDISH VERB DATABASE
 // Format: [infinitiv, presens, preteritum, supinum, imperativ, english, group]
-// Compound tenses are derived:
-//   Perfekt = har + supinum
-//   Pluskvamperfekt = hade + supinum
-//   Futurum = ska + infinitiv
 // ============================================================
 const VERB_GROUPS = [
   { id: "1",  label: "Grupp 1",  example: "Prata! att prata / pratar / pratade / har pratat / ska prata",   pattern: "-ar / -ade / -at" },
@@ -47,7 +78,7 @@ const VERB_GROUPS = [
 ];
 
 const VERBS = [
-  // Grupp 1: -ar / -ade / -at
+  // Grupp 1
   ["tala", "talar", "talade", "talat", "tala", "to speak", "1"],
   ["arbeta", "arbetar", "arbetade", "arbetat", "arbeta", "to work", "1"],
   ["handla", "handlar", "handlade", "handlat", "handla", "to shop / to act", "1"],
@@ -68,8 +99,7 @@ const VERBS = [
   ["berätta", "berättar", "berättade", "berättat", "berätta", "to tell / to narrate", "1"],
   ["förklara", "förklarar", "förklarade", "förklarat", "förklara", "to explain", "1"],
   ["hitta", "hittar", "hittade", "hittat", "hitta", "to find", "1"],
-
-  // Grupp 2a: -er / -de / -t (voiced consonant before ending)
+  // Grupp 2a
   ["ringa", "ringer", "ringde", "ringt", "ring", "to call / to ring", "2a"],
   ["bygga", "bygger", "byggde", "byggt", "bygg", "to build", "2a"],
   ["följa", "följer", "följde", "följt", "följ", "to follow", "2a"],
@@ -82,22 +112,19 @@ const VERBS = [
   ["behöva", "behöver", "behövde", "behövt", "behöv", "to need", "2a"],
   ["leva", "lever", "levde", "levt", "lev", "to live (be alive)", "2a"],
   ["köra", "kör", "körde", "kört", "kör", "to drive", "2a"],
-
-  // Grupp 2b: -er / -te / -t (voiceless consonant before ending)
+  // Grupp 2b
   ["köpa", "köper", "köpte", "köpt", "köp", "to buy", "2b"],
   ["läsa", "läser", "läste", "läst", "läs", "to read", "2b"],
   ["tycka", "tycker", "tyckte", "tyckt", "tyck", "to think (opinion)", "2b"],
   ["tänka", "tänker", "tänkte", "tänkt", "tänk", "to think (reflect)", "2b"],
   ["försöka", "försöker", "försökte", "försökt", "försök", "to try", "2b"],
   ["resa", "reser", "reste", "rest", "res", "to travel", "2b"],
-
-  // Grupp 3: -r / -dde / -tt (short verbs)
+  // Grupp 3
   ["bo", "bor", "bodde", "bott", "bo", "to live (reside)", "3"],
   ["tro", "tror", "trodde", "trott", "tro", "to believe", "3"],
   ["må", "mår", "mådde", "mått", "må", "to feel (health)", "3"],
   ["sy", "syr", "sydde", "sytt", "sy", "to sew", "3"],
-
-  // Grupp 4a: strong verbs — supinum in -it
+  // Grupp 4a
   ["skriva", "skriver", "skrev", "skrivit", "skriv", "to write", "4a"],
   ["dricka", "dricker", "drack", "druckit", "drick", "to drink", "4a"],
   ["ta", "tar", "tog", "tagit", "ta", "to take", "4a"],
@@ -107,8 +134,7 @@ const VERBS = [
   ["sova", "sover", "sov", "sovit", "sov", "to sleep", "4a"],
   ["sitta", "sitter", "satt", "suttit", "sitt", "to sit", "4a"],
   ["finnas", "finns", "fanns", "funnits", "-", "to exist / there is", "4a"],
-
-  // Grupp 4b: strong verbs — irregular supinum (-tt, -rt, -ft, etc.)
+  // Grupp 4b
   ["gå", "går", "gick", "gått", "gå", "to go / to walk", "4b"],
   ["ge", "ger", "gav", "gett", "ge", "to give", "4b"],
   ["se", "ser", "såg", "sett", "se", "to see", "4b"],
@@ -129,10 +155,8 @@ const VERBS = [
 ];
 
 // ============================================================
-// ALL TENSES — base forms + compound tenses derived from them
+// ALL TENSES
 // ============================================================
-// Base form indices: 0=infinitiv, 1=presens, 2=preteritum, 3=supinum, 4=imperativ
-// Compound tenses are computed:
 const ALL_TENSES = [
   { key: "infinitiv",        label: "Infinitiv / Infinitive",              color: "text-blue-400",    getForm: (v) => v[0] !== "-" ? v[0] : null },
   { key: "presens",          label: "Presens / Present",                   color: "text-green-400",   getForm: (v) => v[1] !== "-" ? v[1] : null },
@@ -145,8 +169,7 @@ const ALL_TENSES = [
 ];
 
 // ============================================================
-// VOCABULARY DATABASE — High-frequency A2 to B1 words by topic
-// Format: [swedish, english, gender/class, example sentence]
+// VOCABULARY DATABASE
 // ============================================================
 const VOCAB = {
   "Everyday Life": [
@@ -236,41 +259,153 @@ const VOCAB = {
 };
 
 // ============================================================
+// COMMON PHRASES — B1 chunks to learn as units
+// [swedish, english, context, example usage]
+// ============================================================
+const PHRASES = [
+  ["det beror på", "it depends on", "Qualifying answers", "Det beror på vädret."],
+  ["jag håller med", "I agree", "Expressing agreement", "Jag håller med dig helt och hållet."],
+  ["det spelar ingen roll", "it doesn't matter", "Dismissing importance", "Det spelar ingen roll vad de tycker."],
+  ["det verkar som att", "it seems like", "Making observations", "Det verkar som att hon är sjuk."],
+  ["å ena sidan... å andra sidan", "on one hand... on the other hand", "Comparing perspectives", "Å ena sidan är det dyrt, å andra sidan är det bra."],
+  ["jag menar", "I mean", "Clarifying", "Jag menar att vi borde vänta."],
+  ["det handlar om", "it's about", "Explaining the topic", "Det handlar om att vara ärlig."],
+  ["det är värt att", "it's worth", "Recommending", "Det är värt att försöka."],
+  ["jag ser fram emot", "I look forward to", "Expressing anticipation", "Jag ser fram emot helgen."],
+  ["för det första... för det andra", "firstly... secondly", "Structuring arguments", "För det första är det billigt. För det andra är det nära."],
+  ["det gör inget", "it doesn't matter / never mind", "Reassuring", "Det gör inget, vi kan prova igen."],
+  ["hur som helst", "anyway / in any case", "Changing topic", "Hur som helst, vad ska vi äta?"],
+  ["i alla fall", "in any case / at least", "Concluding", "I alla fall hade vi roligt."],
+  ["det låter bra", "that sounds good", "Agreeing to plans", "Det låter bra, vi ses där!"],
+  ["vad synd", "what a shame", "Expressing sympathy", "Vad synd att du inte kan komma."],
+  ["det var länge sedan", "it's been a long time", "Reconnecting", "Det var länge sedan vi sågs."],
+  ["ta det lugnt", "take it easy / calm down", "Reassuring", "Ta det lugnt, allt ordnar sig."],
+  ["det är klart", "of course", "Confirming", "Det är klart att du kan komma."],
+  ["jag har ingen aning", "I have no idea", "Expressing uncertainty", "Jag har ingen aning om vad han menar."],
+  ["det stämmer", "that's correct / that's right", "Confirming facts", "Ja, det stämmer."],
+  ["för övrigt", "by the way / moreover", "Adding information", "För övrigt, har du sett den nya filmen?"],
+  ["så klart", "of course / naturally", "Confirming", "Så klart vill jag komma!"],
+  ["det hänger ihop med", "it's connected to", "Explaining relationships", "Det hänger ihop med ekonomin."],
+  ["att ha råd med", "to be able to afford", "Discussing finances", "Jag har inte råd med en ny bil."],
+  ["det räcker", "that's enough", "Setting limits", "Det räcker, tack."],
+  ["jag bryr mig om", "I care about", "Expressing concern", "Jag bryr mig om miljön."],
+  ["det är dags att", "it's time to", "Urging action", "Det är dags att gå hem."],
+  ["att ha lust att", "to feel like (doing)", "Expressing desire", "Jag har lust att resa nånstans."],
+  ["det finns risk att", "there's a risk that", "Warning", "Det finns risk att det regnar."],
+  ["i samband med", "in connection with", "Formal context", "I samband med mötet diskuterade vi budgeten."],
+];
+
+// ============================================================
+// SENTENCE BUILDING — English to Swedish, testing word order
+// [english, swedish, hint, grammar point]
+// ============================================================
+const SENTENCES = [
+  // V2 rule — main clause
+  ["Yesterday I bought a new book.", "Igår köpte jag en ny bok.", "V2: verb must be second element", "V2 word order"],
+  ["Tomorrow we will eat dinner together.", "Imorgon ska vi äta middag tillsammans.", "V2 with future tense", "V2 word order"],
+  ["Maybe she is coming later.", "Kanske kommer hon senare.", "V2: kanske pushes verb to position 2", "V2 word order"],
+  ["Sometimes I read Swedish news.", "Ibland läser jag svenska nyheter.", "V2 with time adverb first", "V2 word order"],
+  ["Unfortunately I can't come.", "Tyvärr kan jag inte komma.", "V2: tyvärr takes first position", "V2 word order"],
+  ["In Sweden it rains a lot.", "I Sverige regnar det mycket.", "V2 with place adverb first", "V2 word order"],
+  ["Now I understand what you mean.", "Nu förstår jag vad du menar.", "V2 with nu first", "V2 word order"],
+  ["Last year we lived in Stockholm.", "Förra året bodde vi i Stockholm.", "V2 with time phrase first", "V2 word order"],
+  ["Therefore I have to study more.", "Därför måste jag studera mer.", "V2 with connector first", "V2 word order"],
+  ["Here you can buy good coffee.", "Här kan man köpa bra kaffe.", "V2 with place adverb + man", "V2 word order"],
+
+  // Subordinate clause word order (inte before verb)
+  ["I know that he doesn't live here.", "Jag vet att han inte bor här.", "Bisats: inte comes before the verb", "Subordinate clause"],
+  ["She said that she can't come.", "Hon sa att hon inte kan komma.", "Bisats: inte before kan", "Subordinate clause"],
+  ["Because I don't have time.", "Eftersom jag inte har tid.", "Bisats: inte before har", "Subordinate clause"],
+  ["If you don't want to.", "Om du inte vill.", "Bisats: inte before vill", "Subordinate clause"],
+  ["I think that it is important.", "Jag tycker att det är viktigt.", "Bisats with att", "Subordinate clause"],
+  ["When I was young, I played football.", "När jag var ung, spelade jag fotboll.", "Bisats + V2 in main clause", "Subordinate clause"],
+  ["Although it is expensive, I want to buy it.", "Även om det är dyrt, vill jag köpa det.", "Bisats + V2 in main clause", "Subordinate clause"],
+
+  // Perfect tense
+  ["I have lived in Sweden for two years.", "Jag har bott i Sverige i två år.", "Perfekt: har + supinum", "Perfekt"],
+  ["She has already eaten.", "Hon har redan ätit.", "Perfekt: har + supinum", "Perfekt"],
+  ["We have never been there.", "Vi har aldrig varit där.", "Perfekt with aldrig", "Perfekt"],
+  ["Have you read this book?", "Har du läst den här boken?", "Perfekt question: har first", "Perfekt"],
+  ["They had already left when I arrived.", "De hade redan gått när jag kom.", "Pluskvamperfekt", "Pluskvamperfekt"],
+
+  // Common constructions
+  ["I feel like going for a walk.", "Jag har lust att gå en promenad.", "har lust att + infinitive", "Common construction"],
+  ["It depends on the weather.", "Det beror på vädret.", "beror på = depends on", "Common construction"],
+  ["I look forward to the summer.", "Jag ser fram emot sommaren.", "ser fram emot = look forward to", "Common construction"],
+  ["Can you help me with this?", "Kan du hjälpa mig med det här?", "hjälpa + med", "Common construction"],
+  ["I'm interested in Swedish culture.", "Jag är intresserad av svensk kultur.", "intresserad av", "Common construction"],
+  ["She is good at cooking.", "Hon är bra på att laga mat.", "bra på att + infinitive", "Common construction"],
+  ["I'm used to working late.", "Jag är van vid att jobba sent.", "van vid att = used to", "Common construction"],
+  ["It's time to go.", "Det är dags att gå.", "det är dags att = it's time to", "Common construction"],
+
+  // Everyday B1 sentences
+  ["I would like to book a table for two.", "Jag skulle vilja boka ett bord för två.", "skulle vilja = would like to", "Everyday"],
+  ["Could you repeat that, please?", "Kan du upprepa det, tack?", "Polite request", "Everyday"],
+  ["I don't agree with you.", "Jag håller inte med dig.", "håller inte med = disagree", "Everyday"],
+  ["What do you think about this?", "Vad tycker du om det här?", "tycka om = to think about", "Everyday"],
+  ["I need to go to the doctor.", "Jag behöver gå till doktorn.", "behöva + infinitive", "Everyday"],
+  ["How long have you lived here?", "Hur länge har du bott här?", "Perfekt for duration", "Everyday"],
+  ["I've been working all day.", "Jag har jobbat hela dagen.", "Perfekt for ongoing situation", "Everyday"],
+  ["We should meet more often.", "Vi borde träffas oftare.", "borde + infinitive", "Everyday"],
+];
+
+// ============================================================
+// PREPOSITION DRILLS
+// [sentence with ___ blank, correct preposition, english, hint]
+// ============================================================
+const PREPOSITIONS = [
+  ["Jag är intresserad ___ svensk kultur.", "av", "I'm interested in Swedish culture.", "intresserad + ?"],
+  ["Hon är bra ___ att laga mat.", "på", "She is good at cooking.", "bra + ?"],
+  ["Vi pratar ___ vädret.", "om", "We're talking about the weather.", "pratar + ?"],
+  ["Jag ser fram ___ sommaren.", "emot", "I look forward to the summer.", "ser fram + ?"],
+  ["Det beror ___ vad du vill.", "på", "It depends on what you want.", "beror + ?"],
+  ["Han är rädd ___ spindlar.", "för", "He is afraid of spiders.", "rädd + ?"],
+  ["Jag håller ___ dig.", "med", "I agree with you.", "håller + ?"],
+  ["Hon är gift ___ en svensk man.", "med", "She is married to a Swedish man.", "gift + ?"],
+  ["De bor ___ Stockholm.", "i", "They live in Stockholm.", "bor + ? (city)"],
+  ["Jag bor ___ Kungsgatan.", "på", "I live on Kungsgatan.", "bor + ? (street)"],
+  ["Vi åker ___ jobbet.", "till", "We go to work.", "åker + ?"],
+  ["Jag tänker ___ dig.", "på", "I'm thinking of you.", "tänker + ?"],
+  ["Hon drömmer ___ att resa.", "om", "She dreams of traveling.", "drömmer + ?"],
+  ["Jag är nöjd ___ resultatet.", "med", "I'm satisfied with the result.", "nöjd + ?"],
+  ["Han är stolt ___ sin dotter.", "över", "He is proud of his daughter.", "stolt + ?"],
+  ["Jag bryr mig ___ miljön.", "om", "I care about the environment.", "bryr sig + ?"],
+  ["Det är typiskt ___ Sverige.", "för", "It's typical of Sweden.", "typiskt + ?"],
+  ["Vi väntar ___ bussen.", "på", "We're waiting for the bus.", "väntar + ?"],
+  ["Jag längtar ___ sommaren.", "efter", "I long for the summer.", "längtar + ?"],
+  ["Hon skrattar ___ skämtet.", "åt", "She laughs at the joke.", "skrattar + ?"],
+  ["Jag är van ___ att jobba sent.", "vid", "I'm used to working late.", "van + ?"],
+  ["Tack ___ hjälpen!", "för", "Thanks for the help!", "tack + ?"],
+  ["Vi träffades ___ en fest.", "på", "We met at a party.", "träffades + ? (event)"],
+  ["Han jobbar ___ ett stort företag.", "på", "He works at a big company.", "jobbar + ? (company)"],
+  ["Jag är arg ___ honom.", "på", "I'm angry at him.", "arg + ?"],
+  ["Det är svårt att vänja sig ___ kylan.", "vid", "It's hard to get used to the cold.", "vänja sig + ?"],
+  ["Hon är beroende ___ kaffe.", "av", "She's dependent on coffee.", "beroende + ?"],
+  ["Vi bestämde oss ___ att flytta.", "för", "We decided to move.", "bestämma sig + ?"],
+  ["Jag ber ___ ursäkt.", "om", "I apologize.", "ber + ? ursäkt"],
+  ["Han är kär ___ henne.", "i", "He's in love with her.", "kär + ?"],
+];
+
+// ============================================================
 // SPACED REPETITION ENGINE
 // ============================================================
 const SRS = {
   INTERVALS: [0, 1, 3, 7, 14, 30, 60],
-  load() {
-    try { return JSON.parse(localStorage.getItem('swedish_srs') || '{}'); }
-    catch { return {}; }
-  },
+  load() { try { return JSON.parse(localStorage.getItem('swedish_srs') || '{}'); } catch { return {}; } },
   save(data) { localStorage.setItem('swedish_srs', JSON.stringify(data)); },
-  getCard(id) {
-    const data = this.load();
-    return data[id] || { box: 0, nextReview: 0, correct: 0, wrong: 0 };
-  },
   updateCard(id, correct) {
     const data = this.load();
     const card = data[id] || { box: 0, nextReview: 0, correct: 0, wrong: 0 };
-    if (correct) {
-      card.box = Math.min(card.box + 1, this.INTERVALS.length - 1);
-      card.correct++;
-    } else {
-      card.box = Math.max(card.box - 1, 0);
-      card.wrong++;
-    }
-    const days = this.INTERVALS[card.box];
-    card.nextReview = Date.now() + days * 86400000;
+    if (correct) { card.box = Math.min(card.box + 1, this.INTERVALS.length - 1); card.correct++; }
+    else { card.box = Math.max(card.box - 1, 0); card.wrong++; }
+    card.nextReview = Date.now() + this.INTERVALS[card.box] * 86400000;
     data[id] = card;
     this.save(data);
   },
   getDueCards(ids) {
     const data = this.load();
     const now = Date.now();
-    return ids.filter(id => {
-      const card = data[id];
-      return !card || card.nextReview <= now;
-    });
+    return ids.filter(id => { const c = data[id]; return !c || c.nextReview <= now; });
   },
   getStats() {
     const data = this.load();
@@ -279,7 +414,6 @@ const SRS = {
       total: entries.length,
       mastered: entries.filter(c => c.box >= 5).length,
       learning: entries.filter(c => c.box > 0 && c.box < 5).length,
-      newOrWeak: entries.filter(c => c.box === 0).length,
       totalCorrect: entries.reduce((s, c) => s + c.correct, 0),
       totalWrong: entries.reduce((s, c) => s + c.wrong, 0),
     };
@@ -292,15 +426,8 @@ const SRS = {
 // ============================================================
 function shuffle(arr) {
   const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   return a;
-}
-
-function getVerbForm(verb, tenseIdx) {
-  return ALL_TENSES[tenseIdx].getForm(verb);
 }
 
 // ============================================================
@@ -312,51 +439,45 @@ const { useState, useEffect, useCallback, useMemo, useRef } = React;
 function Nav({ view, setView, stats }) {
   const tabs = [
     ["study", "Study"],
-    ["verbs", "Verb Drills"],
-    ["vocab", "Vocabulary"],
+    ["verbs", "Verbs"],
+    ["sentences", "Sentences"],
+    ["phrases", "Phrases"],
+    ["prepositions", "Prepositions"],
+    ["listen", "Listen"],
     ["reference", "Reference"],
     ["stats", "Progress"],
   ];
   return (
     <nav className="bg-gray-900 border-b border-gray-800 sticky top-0 z-50">
-      <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <span className="text-xl font-bold text-blue-400">SE</span>
-          <span className="text-sm text-gray-400 hidden sm:inline">A2 &rarr; B1</span>
+          <span className="text-sm text-gray-400 hidden sm:inline">A2&rarr;B1</span>
         </div>
-        <div className="flex gap-1 flex-wrap">
+        <div className="flex gap-1 flex-wrap justify-end">
           {tabs.map(([key, label]) => (
             <button key={key} onClick={() => setView(key)}
-              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+              className={`px-2 sm:px-3 py-1.5 rounded text-xs sm:text-sm font-medium transition-colors ${
                 view === key ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'
               }`}>
               {label}
             </button>
           ))}
         </div>
-        {stats.total > 0 && (
-          <div className="hidden md:flex items-center gap-3 text-xs text-gray-500">
-            <span className="text-green-400">{stats.mastered} mastered</span>
-            <span className="text-yellow-400">{stats.learning} learning</span>
-          </div>
-        )}
       </div>
     </nav>
   );
 }
 
-// ---- Study Mode (Smart Review) ----
+// ---- Study Mode (Smart SRS Review — all card types) ----
 function StudyMode() {
   const allIds = useMemo(() => {
     const ids = [];
-    VERBS.forEach((v, i) => {
-      ALL_TENSES.forEach((t, ti) => {
-        if (t.getForm(v) !== null) ids.push(`verb:${i}:${ti}`);
-      });
-    });
-    Object.entries(VOCAB).forEach(([cat, words]) => {
-      words.forEach((w, i) => ids.push(`vocab:${cat}:${i}`));
-    });
+    VERBS.forEach((v, i) => { ALL_TENSES.forEach((t, ti) => { if (t.getForm(v) !== null) ids.push(`verb:${i}:${ti}`); }); });
+    Object.entries(VOCAB).forEach(([cat, words]) => { words.forEach((w, i) => ids.push(`vocab:${cat}:${i}`)); });
+    PHRASES.forEach((p, i) => ids.push(`phrase:${i}`));
+    SENTENCES.forEach((s, i) => ids.push(`sentence:${i}`));
+    PREPOSITIONS.forEach((p, i) => ids.push(`prep:${i}`));
     return ids;
   }, []);
 
@@ -376,218 +497,158 @@ function StudyMode() {
     return shuffled;
   }, [allIds]);
 
-  useEffect(() => {
-    const q = buildQueue();
-    if (q.length > 0) setCurrent(q[0]);
-  }, []);
-
-  useEffect(() => {
-    if (feedback === null && inputRef.current) inputRef.current.focus();
-  }, [current, feedback]);
+  useEffect(() => { const q = buildQueue(); if (q.length > 0) setCurrent(q[0]); }, []);
+  useEffect(() => { if (feedback === null && inputRef.current) inputRef.current.focus(); }, [current, feedback]);
 
   const parseId = (id) => {
     if (!id) return null;
     const parts = id.split(':');
     if (parts[0] === 'verb') {
-      const vi = parseInt(parts[1]);
-      const ti = parseInt(parts[2]);
-      const verb = VERBS[vi];
-      const tense = ALL_TENSES[ti];
-      const form = tense.getForm(verb);
-      return {
-        type: 'verb',
-        question: `${verb[5]} - ${tense.label}`,
-        answer: form,
-        hint: verb[0],
-        tense: tense.label,
-        tenseColor: tense.color,
-      };
-    } else {
-      const cat = parts[1];
-      const wi = parseInt(parts[2]);
-      const word = VOCAB[cat][wi];
-      return {
-        type: 'vocab',
-        question: word[1],
-        answer: word[0],
-        hint: word[2] === 'en' || word[2] === 'ett' ? `(${word[2]}) - ${word[3]}` : word[3],
-        category: cat,
-      };
+      const vi = parseInt(parts[1]), ti = parseInt(parts[2]);
+      const verb = VERBS[vi], tense = ALL_TENSES[ti];
+      return { type: 'verb', question: `${verb[5]} - ${tense.label}`, answer: tense.getForm(verb), hint: verb[0], tag: tense.label, tagColor: tense.color, speakText: tense.getForm(verb) };
+    } else if (parts[0] === 'vocab') {
+      const cat = parts[1], wi = parseInt(parts[2]), word = VOCAB[cat][wi];
+      return { type: 'vocab', question: word[1], answer: word[0], hint: word[2] === 'en' || word[2] === 'ett' ? `(${word[2]}) - ${word[3]}` : word[3], tag: cat, tagColor: 'text-cyan-400', speakText: word[0] };
+    } else if (parts[0] === 'phrase') {
+      const pi = parseInt(parts[1]), p = PHRASES[pi];
+      return { type: 'phrase', question: p[1], answer: p[0], hint: p[2], tag: 'Phrase', tagColor: 'text-emerald-400', speakText: p[0] };
+    } else if (parts[0] === 'sentence') {
+      const si = parseInt(parts[1]), s = SENTENCES[si];
+      return { type: 'sentence', question: s[0], answer: s[1], hint: s[2], tag: s[3], tagColor: 'text-amber-400', speakText: s[1] };
+    } else if (parts[0] === 'prep') {
+      const pi = parseInt(parts[1]), p = PREPOSITIONS[pi];
+      return { type: 'prep', question: p[0].replace('___', '___'), answer: p[1], hint: p[3], tag: 'Preposition', tagColor: 'text-rose-400', speakText: p[0].replace('___', p[1]) };
     }
+    return null;
   };
 
   const advance = () => {
-    setFeedback(null);
-    setInput('');
+    setFeedback(null); setInput('');
     const idx = queue.indexOf(current);
-    if (idx < queue.length - 1) {
-      setCurrent(queue[idx + 1]);
-    } else {
-      const q = buildQueue();
-      setCurrent(q[0] || null);
-    }
+    if (idx < queue.length - 1) setCurrent(queue[idx + 1]);
+    else { const q = buildQueue(); setCurrent(q[0] || null); }
   };
 
   const checkAnswer = () => {
     const card = parseId(current);
     if (!card) return;
-    const correct = input.trim().toLowerCase() === card.answer.toLowerCase();
+    const userAns = input.trim().toLowerCase();
+    const correctAns = card.answer.toLowerCase();
+    const correct = userAns === correctAns;
     SRS.updateCard(current, correct);
-    setFeedback({ correct, answer: card.answer });
-    setSessionStats(s => ({
-      correct: s.correct + (correct ? 1 : 0),
-      wrong: s.wrong + (correct ? 0 : 1),
-    }));
+    setFeedback({ correct, answer: card.answer, speakText: card.speakText });
+    setSessionStats(s => ({ correct: s.correct + (correct ? 1 : 0), wrong: s.wrong + (correct ? 0 : 1) }));
     setStreak(correct ? streak + 1 : 0);
   };
 
-  const handleKey = (e) => {
-    if (e.key === 'Enter') {
-      if (feedback) advance();
-      else if (input.trim()) checkAnswer();
-    }
-  };
-
+  const handleKey = (e) => { if (e.key === 'Enter') { if (feedback) advance(); else if (input.trim()) checkAnswer(); } };
   const card = parseId(current);
-  if (!card) return (
-    <div className="text-center py-20 text-gray-400">
-      <p className="text-2xl mb-4">All caught up!</p>
-      <p>Come back later for more review.</p>
-    </div>
-  );
-
+  if (!card) return <div className="text-center py-20 text-gray-400"><p className="text-2xl mb-4">All caught up!</p></div>;
   const progress = queue.indexOf(current) + 1;
-  const total = queue.length;
 
   return (
     <div className="max-w-xl mx-auto px-4 py-8 fade-in">
       <div className="flex items-center justify-between mb-6">
-        <span className="text-sm text-gray-500">{progress}/{total}</span>
+        <span className="text-sm text-gray-500">{progress}/{queue.length}</span>
         <div className="flex-1 mx-4 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-          <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${(progress / total) * 100}%` }} />
+          <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${(progress / queue.length) * 100}%` }} />
         </div>
-        {streak >= 3 && (
-          <span className={`text-sm font-bold text-yellow-400 ${streak >= 5 ? 'streak-glow' : ''} px-2 py-0.5 rounded`}>
-            {streak} streak
-          </span>
-        )}
+        {streak >= 3 && <span className={`text-sm font-bold text-yellow-400 ${streak >= 5 ? 'streak-glow' : ''} px-2 py-0.5 rounded`}>{streak} streak</span>}
       </div>
 
       <div className={`bg-gray-900 rounded-xl p-8 border border-gray-800 ${feedback?.correct === true ? 'correct-flash' : ''} ${feedback?.correct === false ? 'wrong-flash' : ''}`}>
         <div className="text-center mb-6">
-          {card.type === 'verb' && (
-            <span className={`text-xs font-medium px-2 py-0.5 rounded ${card.tenseColor} bg-gray-800`}>
-              {card.tense}
-            </span>
-          )}
-          {card.type === 'vocab' && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded text-cyan-400 bg-gray-800">
-              {card.category}
-            </span>
-          )}
+          <span className={`text-xs font-medium px-2 py-0.5 rounded ${card.tagColor} bg-gray-800`}>{card.tag}</span>
         </div>
-        <p className="text-2xl font-semibold text-center mb-2">{card.question}</p>
+        <p className="text-xl sm:text-2xl font-semibold text-center mb-2">{card.question}</p>
         <p className="text-sm text-gray-500 text-center mb-8">{card.hint}</p>
 
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={handleKey}
-          disabled={feedback !== null}
-          placeholder="Type the Swedish..."
-          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-center text-lg
-            focus:outline-none focus:border-blue-500 disabled:opacity-50"
-          autoComplete="off" autoCorrect="off" spellCheck="false"
-        />
+        {card.type === 'sentence' ? (
+          <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleKey(e); } }}
+            disabled={feedback !== null} placeholder="Type the Swedish sentence..."
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-center text-base focus:outline-none focus:border-blue-500 disabled:opacity-50 resize-none"
+            rows={2} autoComplete="off" autoCorrect="off" spellCheck="false" />
+        ) : (
+          <input ref={inputRef} type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey}
+            disabled={feedback !== null} placeholder={card.type === 'prep' ? 'Type the preposition...' : 'Type the Swedish...'}
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-center text-lg focus:outline-none focus:border-blue-500 disabled:opacity-50"
+            autoComplete="off" autoCorrect="off" spellCheck="false" />
+        )}
 
         {feedback && (
           <div className="mt-6 text-center fade-in">
             {feedback.correct ? (
-              <p className="text-green-400 text-lg font-semibold">Correct!</p>
+              <div className="flex items-center justify-center gap-2">
+                <p className="text-green-400 text-lg font-semibold">Correct!</p>
+                <SpeakButton text={feedback.speakText} />
+              </div>
             ) : (
               <div>
                 <p className="text-red-400 text-lg font-semibold mb-1">Not quite</p>
-                <p className="text-gray-300">Correct answer: <span className="font-bold text-white">{feedback.answer}</span></p>
+                <div className="flex items-center justify-center gap-2">
+                  <p className="text-gray-300">Answer: <span className="font-bold text-white">{feedback.answer}</span></p>
+                  <SpeakButton text={feedback.speakText} />
+                </div>
               </div>
             )}
-            <button onClick={advance}
-              className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors">
-              Next (Enter)
-            </button>
+            <button onClick={advance} className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium">Next (Enter)</button>
           </div>
         )}
-
         {!feedback && input.trim() && (
-          <button onClick={checkAnswer}
-            className="mt-4 w-full py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors">
-            Check (Enter)
-          </button>
+          <button onClick={checkAnswer} className="mt-4 w-full py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium">Check (Enter)</button>
         )}
       </div>
 
       <div className="flex justify-center gap-8 mt-6 text-sm text-gray-500">
         <span className="text-green-400">{sessionStats.correct} correct</span>
         <span className="text-red-400">{sessionStats.wrong} wrong</span>
-        <span>{Math.round((sessionStats.correct / Math.max(1, sessionStats.correct + sessionStats.wrong)) * 100)}% accuracy</span>
+        <span>{Math.round((sessionStats.correct / Math.max(1, sessionStats.correct + sessionStats.wrong)) * 100)}%</span>
       </div>
     </div>
   );
 }
 
-// ---- Verb Drills (all 8 tenses) ----
+// ---- Verb Drills ----
 function VerbDrills() {
   const [verbIdx, setVerbIdx] = useState(null);
   const [answers, setAnswers] = useState({});
   const [checked, setChecked] = useState(false);
   const [score, setScore] = useState(null);
 
-  const startDrill = () => {
-    setVerbIdx(Math.floor(Math.random() * VERBS.length));
-    setAnswers({});
-    setChecked(false);
-    setScore(null);
-  };
-
+  const startDrill = () => { setVerbIdx(Math.floor(Math.random() * VERBS.length)); setAnswers({}); setChecked(false); setScore(null); };
   useEffect(() => { startDrill(); }, []);
-
   const verb = verbIdx !== null ? VERBS[verbIdx] : null;
 
   const checkAll = () => {
     if (!verb) return;
-    let correct = 0;
-    let total = 0;
+    let correct = 0, total = 0;
     ALL_TENSES.forEach((t, i) => {
       const form = t.getForm(verb);
       if (form === null) return;
       total++;
-      const id = `verb:${verbIdx}:${i}`;
-      const userAns = (answers[i] || '').trim().toLowerCase();
-      const isCorrect = userAns === form.toLowerCase();
+      const isCorrect = (answers[i] || '').trim().toLowerCase() === form.toLowerCase();
       if (isCorrect) correct++;
-      SRS.updateCard(id, isCorrect);
+      SRS.updateCard(`verb:${verbIdx}:${i}`, isCorrect);
     });
     setChecked(true);
     setScore({ correct, total });
   };
 
   if (!verb) return null;
-
   return (
     <div className="max-w-xl mx-auto px-4 py-8 fade-in">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold">Verb Drill - All 8 Tenses</h2>
-        <button onClick={startDrill}
-          className="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-sm">
-          New Verb
-        </button>
+        <h2 className="text-xl font-bold">Verb Drill</h2>
+        <button onClick={startDrill} className="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-sm">New Verb</button>
       </div>
-
       <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
-        <p className="text-2xl font-bold text-center mb-1">{verb[5]}</p>
-        <p className="text-sm text-gray-500 text-center mb-6">Fill in all forms (including compound tenses)</p>
-
+        <div className="flex items-center justify-center gap-2 mb-1">
+          <p className="text-2xl font-bold">{verb[5]}</p>
+          <SpeakButton text={verb[0]} />
+        </div>
+        <p className="text-sm text-gray-500 text-center mb-6">Fill in all 8 tenses</p>
         <div className="space-y-3">
           {ALL_TENSES.map((tense, i) => {
             const form = tense.getForm(verb);
@@ -601,50 +662,350 @@ function VerbDrills() {
             const isCorrect = checked && userAns === form.toLowerCase();
             const isWrong = checked && !isCorrect;
             return (
-              <div key={tense.key} className="flex items-center gap-3">
-                <span className={`w-36 text-sm font-medium ${tense.color}`}>{tense.label}</span>
-                <input
-                  type="text"
-                  value={answers[i] || ''}
-                  onChange={e => setAnswers({ ...answers, [i]: e.target.value })}
-                  disabled={checked}
+              <div key={tense.key} className="flex items-center gap-2">
+                <span className={`w-36 text-xs sm:text-sm font-medium ${tense.color} flex-shrink-0`}>{tense.label}</span>
+                <input type="text" value={answers[i] || ''} onChange={e => setAnswers({ ...answers, [i]: e.target.value })} disabled={checked}
                   placeholder={tense.key === 'perfekt' ? 'har + ...' : tense.key === 'pluskvamperfekt' ? 'hade + ...' : tense.key === 'futurum' ? 'ska + ...' : ''}
-                  className={`flex-1 bg-gray-800 border rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500
-                    ${isCorrect ? 'border-green-500 text-green-400' : ''}
-                    ${isWrong ? 'border-red-500 text-red-400' : 'border-gray-700'}
-                    disabled:opacity-70`}
-                  autoComplete="off" autoCorrect="off" spellCheck="false"
-                />
+                  className={`flex-1 bg-gray-800 border rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 ${isCorrect ? 'border-green-500 text-green-400' : ''} ${isWrong ? 'border-red-500 text-red-400' : 'border-gray-700'} disabled:opacity-70`}
+                  autoComplete="off" autoCorrect="off" spellCheck="false" />
                 {isWrong && <span className="text-sm text-green-400 font-medium whitespace-nowrap">{form}</span>}
                 {isCorrect && <span className="text-green-400 text-sm">&#10003;</span>}
+                {checked && <SpeakButton text={form} size="sm" />}
               </div>
             );
           })}
         </div>
-
         {!checked ? (
-          <button onClick={checkAll}
-            className="mt-6 w-full py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium">
-            Check All
-          </button>
+          <button onClick={checkAll} className="mt-6 w-full py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium">Check All</button>
         ) : (
           <div className="mt-6 text-center">
-            <p className={`text-lg font-bold ${score.correct === score.total ? 'text-green-400' : 'text-yellow-400'}`}>
-              {score.correct}/{score.total} correct
-            </p>
-            <button onClick={startDrill}
-              className="mt-3 px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium">
-              Next Verb
-            </button>
+            <p className={`text-lg font-bold ${score.correct === score.total ? 'text-green-400' : 'text-yellow-400'}`}>{score.correct}/{score.total}</p>
+            <button onClick={startDrill} className="mt-3 px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium">Next Verb</button>
           </div>
         )}
       </div>
+    </div>
+  );
+}
 
-      {/* Tense formation reminder */}
-      <div className="mt-6 bg-gray-900/50 rounded-lg p-4 border border-gray-800 text-xs text-gray-500 space-y-1">
-        <p><span className="text-teal-400">Perfekt:</span> har + supinum &rarr; <i>Jag har ätit</i> (I have eaten)</p>
-        <p><span className="text-orange-400">Pluskvamperfekt:</span> hade + supinum &rarr; <i>Jag hade ätit</i> (I had eaten)</p>
-        <p><span className="text-pink-400">Futurum:</span> ska + infinitiv &rarr; <i>Jag ska äta</i> (I will eat)</p>
+// ---- Sentence Building ----
+function SentenceBuilder() {
+  const [idx, setIdx] = useState(0);
+  const [input, setInput] = useState('');
+  const [feedback, setFeedback] = useState(null);
+  const [filter, setFilter] = useState('all');
+  const inputRef = useRef(null);
+
+  const categories = useMemo(() => ['all', ...new Set(SENTENCES.map(s => s[3]))], []);
+  const filtered = useMemo(() => filter === 'all' ? SENTENCES : SENTENCES.filter(s => s[3] === filter), [filter]);
+  const [order, setOrder] = useState(() => shuffle(Array.from({ length: filtered.length }, (_, i) => i)));
+
+  useEffect(() => {
+    setOrder(shuffle(Array.from({ length: filtered.length }, (_, i) => i)));
+    setIdx(0); setInput(''); setFeedback(null);
+  }, [filter]);
+
+  useEffect(() => { if (!feedback && inputRef.current) inputRef.current.focus(); }, [idx, feedback]);
+
+  const s = filtered[order[idx % filtered.length]];
+  const sentenceIdx = SENTENCES.indexOf(s);
+
+  const check = () => {
+    const correct = input.trim().toLowerCase() === s[1].toLowerCase();
+    SRS.updateCard(`sentence:${sentenceIdx}`, correct);
+    setFeedback({ correct, answer: s[1] });
+  };
+
+  const next = () => {
+    setFeedback(null); setInput('');
+    setIdx(i => i + 1);
+  };
+
+  const handleKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (feedback) next(); else if (input.trim()) check(); } };
+
+  return (
+    <div className="max-w-xl mx-auto px-4 py-8 fade-in">
+      <h2 className="text-xl font-bold mb-4">Sentence Building</h2>
+      <div className="flex flex-wrap gap-2 mb-6">
+        {categories.map(c => (
+          <button key={c} onClick={() => setFilter(c)}
+            className={`px-3 py-1 rounded text-xs font-medium ${filter === c ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+            {c === 'all' ? 'All' : c}
+          </button>
+        ))}
+      </div>
+
+      <div className={`bg-gray-900 rounded-xl p-8 border border-gray-800 ${feedback?.correct === true ? 'correct-flash' : ''} ${feedback?.correct === false ? 'wrong-flash' : ''}`}>
+        <span className="text-xs font-medium px-2 py-0.5 rounded text-amber-400 bg-gray-800">{s[3]}</span>
+        <p className="text-xl font-semibold text-center mt-4 mb-2">{s[0]}</p>
+        <p className="text-sm text-gray-500 text-center mb-6">{s[2]}</p>
+
+        <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey}
+          disabled={feedback !== null} placeholder="Write the Swedish translation..."
+          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-center text-base focus:outline-none focus:border-blue-500 disabled:opacity-50 resize-none"
+          rows={2} autoComplete="off" autoCorrect="off" spellCheck="false" />
+
+        {feedback && (
+          <div className="mt-6 text-center fade-in">
+            {feedback.correct ? (
+              <div className="flex items-center justify-center gap-2">
+                <p className="text-green-400 text-lg font-semibold">Correct!</p>
+                <SpeakButton text={feedback.answer} />
+              </div>
+            ) : (
+              <div>
+                <p className="text-red-400 text-lg font-semibold mb-1">Not quite</p>
+                <div className="flex items-center justify-center gap-2">
+                  <p className="text-gray-300 text-sm">Answer: <span className="font-bold text-white">{feedback.answer}</span></p>
+                  <SpeakButton text={feedback.answer} />
+                </div>
+              </div>
+            )}
+            <button onClick={next} className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium">Next (Enter)</button>
+          </div>
+        )}
+        {!feedback && input.trim() && (
+          <button onClick={check} className="mt-4 w-full py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium">Check (Enter)</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---- Phrase Practice ----
+function PhrasePractice() {
+  const [cardIdx, setCardIdx] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+  const [shuffled, setShuffled] = useState(() => shuffle(PHRASES));
+
+  const p = shuffled[cardIdx];
+  const id = `phrase:${PHRASES.indexOf(p)}`;
+
+  const rate = (correct) => {
+    SRS.updateCard(id, correct);
+    setFlipped(false);
+    if (cardIdx < shuffled.length - 1) setCardIdx(cardIdx + 1);
+    else { setShuffled(shuffle(PHRASES)); setCardIdx(0); }
+  };
+
+  return (
+    <div className="max-w-xl mx-auto px-4 py-8 fade-in">
+      <h2 className="text-xl font-bold mb-6">Common Phrases</h2>
+
+      <div className="card-flip cursor-pointer" onClick={() => setFlipped(!flipped)} style={{ minHeight: 280 }}>
+        <div className={`card-inner relative w-full ${flipped ? 'flipped' : ''}`} style={{ minHeight: 280 }}>
+          <div className="card-front absolute inset-0 bg-gray-900 rounded-xl p-8 border border-gray-800 flex flex-col items-center justify-center">
+            <span className="text-xs text-gray-500 mb-4">{cardIdx + 1}/{shuffled.length}</span>
+            <p className="text-2xl font-semibold text-center text-emerald-400">{p[1]}</p>
+            <p className="text-sm text-gray-500 mt-3">{p[2]}</p>
+            <p className="text-sm text-gray-600 mt-6">tap to flip</p>
+          </div>
+          <div className="card-back absolute inset-0 bg-gray-900 rounded-xl p-8 border border-emerald-800 flex flex-col items-center justify-center">
+            <div className="flex items-center gap-2">
+              <p className="text-2xl font-bold text-center text-emerald-400">{p[0]}</p>
+              <SpeakButton text={p[0]} />
+            </div>
+            <p className="text-sm text-gray-500 mt-3 text-center italic">{p[3]}</p>
+            <div className="mt-2">
+              <SpeakButton text={p[3]} size="sm" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {flipped && (
+        <div className="flex gap-4 justify-center mt-6 fade-in">
+          <button onClick={() => rate(false)} className="px-6 py-2 bg-red-900/50 hover:bg-red-800 border border-red-800 rounded-lg text-sm font-medium text-red-300">Again</button>
+          <button onClick={() => rate(true)} className="px-6 py-2 bg-green-900/50 hover:bg-green-800 border border-green-800 rounded-lg text-sm font-medium text-green-300">Got it</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Preposition Drills ----
+function PrepositionDrill() {
+  const [order, setOrder] = useState(() => shuffle(Array.from({ length: PREPOSITIONS.length }, (_, i) => i)));
+  const [idx, setIdx] = useState(0);
+  const [input, setInput] = useState('');
+  const [feedback, setFeedback] = useState(null);
+  const [sessionStats, setSessionStats] = useState({ correct: 0, wrong: 0 });
+  const inputRef = useRef(null);
+
+  useEffect(() => { if (!feedback && inputRef.current) inputRef.current.focus(); }, [idx, feedback]);
+
+  const p = PREPOSITIONS[order[idx % PREPOSITIONS.length]];
+  const prepIdx = order[idx % PREPOSITIONS.length];
+
+  const check = () => {
+    const correct = input.trim().toLowerCase() === p[1].toLowerCase();
+    SRS.updateCard(`prep:${prepIdx}`, correct);
+    setFeedback({ correct, answer: p[1] });
+    setSessionStats(s => ({ correct: s.correct + (correct ? 1 : 0), wrong: s.wrong + (correct ? 0 : 1) }));
+  };
+
+  const next = () => {
+    setFeedback(null); setInput('');
+    if (idx >= order.length - 1) { setOrder(shuffle(Array.from({ length: PREPOSITIONS.length }, (_, i) => i))); setIdx(0); }
+    else setIdx(i => i + 1);
+  };
+
+  const handleKey = (e) => { if (e.key === 'Enter') { if (feedback) next(); else if (input.trim()) check(); } };
+
+  // Render sentence with blank highlighted
+  const parts = p[0].split('___');
+
+  return (
+    <div className="max-w-xl mx-auto px-4 py-8 fade-in">
+      <h2 className="text-xl font-bold mb-6">Preposition Drill</h2>
+
+      <div className={`bg-gray-900 rounded-xl p-8 border border-gray-800 ${feedback?.correct === true ? 'correct-flash' : ''} ${feedback?.correct === false ? 'wrong-flash' : ''}`}>
+        <span className="text-xs font-medium px-2 py-0.5 rounded text-rose-400 bg-gray-800">{p[3]}</span>
+
+        <p className="text-xl font-semibold text-center mt-4 mb-2">
+          {parts[0]}<span className="text-rose-400 border-b-2 border-rose-400 px-1">{'_____'}</span>{parts[1]}
+        </p>
+        <p className="text-sm text-gray-500 text-center mb-6">{p[2]}</p>
+
+        <input ref={inputRef} type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey}
+          disabled={feedback !== null} placeholder="Type the preposition..."
+          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-center text-lg focus:outline-none focus:border-blue-500 disabled:opacity-50"
+          autoComplete="off" autoCorrect="off" spellCheck="false" />
+
+        {feedback && (
+          <div className="mt-6 text-center fade-in">
+            {feedback.correct ? (
+              <div className="flex items-center justify-center gap-2">
+                <p className="text-green-400 text-lg font-semibold">Correct!</p>
+                <SpeakButton text={p[0].replace('___', p[1])} />
+              </div>
+            ) : (
+              <div>
+                <p className="text-red-400 text-lg font-semibold mb-1">Not quite</p>
+                <div className="flex items-center justify-center gap-2">
+                  <p className="text-gray-300">Answer: <span className="font-bold text-white">{feedback.answer}</span></p>
+                  <SpeakButton text={p[0].replace('___', p[1])} />
+                </div>
+              </div>
+            )}
+            <button onClick={next} className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium">Next (Enter)</button>
+          </div>
+        )}
+        {!feedback && input.trim() && (
+          <button onClick={check} className="mt-4 w-full py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium">Check (Enter)</button>
+        )}
+      </div>
+
+      <div className="flex justify-center gap-8 mt-6 text-sm text-gray-500">
+        <span className="text-green-400">{sessionStats.correct} correct</span>
+        <span className="text-red-400">{sessionStats.wrong} wrong</span>
+        <span>{idx + 1}/{PREPOSITIONS.length}</span>
+      </div>
+    </div>
+  );
+}
+
+// ---- Listening Mode ----
+function ListenMode() {
+  const [input, setInput] = useState('');
+  const [feedback, setFeedback] = useState(null);
+  const [sessionStats, setSessionStats] = useState({ correct: 0, wrong: 0 });
+  const inputRef = useRef(null);
+
+  // Mix of phrases, vocab, and verb forms for listening practice
+  const items = useMemo(() => {
+    const pool = [];
+    PHRASES.forEach((p, i) => pool.push({ id: `phrase:${i}`, text: p[0], english: p[1], type: 'phrase' }));
+    Object.entries(VOCAB).forEach(([cat, words]) => {
+      words.forEach((w, i) => pool.push({ id: `vocab:${cat}:${i}`, text: w[0], english: w[1], type: 'vocab' }));
+    });
+    SENTENCES.forEach((s, i) => pool.push({ id: `sentence:${i}`, text: s[1], english: s[0], type: 'sentence' }));
+    return pool;
+  }, []);
+
+  const [order, setOrder] = useState(() => shuffle(Array.from({ length: items.length }, (_, i) => i)));
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => { if (!feedback && inputRef.current) inputRef.current.focus(); }, [idx, feedback]);
+
+  const item = items[order[idx % items.length]];
+
+  // Auto-play on new card
+  useEffect(() => {
+    const timer = setTimeout(() => speak(item.text), 300);
+    return () => clearTimeout(timer);
+  }, [idx]);
+
+  const check = () => {
+    const correct = input.trim().toLowerCase() === item.text.toLowerCase();
+    SRS.updateCard(item.id, correct);
+    setFeedback({ correct, answer: item.text });
+    setSessionStats(s => ({ correct: s.correct + (correct ? 1 : 0), wrong: s.wrong + (correct ? 0 : 1) }));
+  };
+
+  const next = () => {
+    setFeedback(null); setInput('');
+    if (idx >= order.length - 1) { setOrder(shuffle(Array.from({ length: items.length }, (_, i) => i))); setIdx(0); }
+    else setIdx(i => i + 1);
+  };
+
+  const handleKey = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (feedback) next();
+      else if (input.trim()) check();
+    }
+  };
+
+  return (
+    <div className="max-w-xl mx-auto px-4 py-8 fade-in">
+      <h2 className="text-xl font-bold mb-2">Listening Comprehension</h2>
+      <p className="text-sm text-gray-500 mb-6">Listen and type what you hear in Swedish</p>
+
+      <div className={`bg-gray-900 rounded-xl p-8 border border-gray-800 ${feedback?.correct === true ? 'correct-flash' : ''} ${feedback?.correct === false ? 'wrong-flash' : ''}`}>
+        <div className="flex flex-col items-center mb-6">
+          <button onClick={() => speak(item.text)}
+            className="w-20 h-20 rounded-full bg-blue-600 hover:bg-blue-500 flex items-center justify-center text-3xl transition-transform active:scale-95 mb-4">
+            &#9654;
+          </button>
+          <button onClick={() => speak(item.text, 'sv-SE')}
+            className="text-xs text-gray-500 hover:text-gray-300">Play again</button>
+          <p className="text-sm text-gray-500 mt-3">{item.english}</p>
+        </div>
+
+        {item.type === 'sentence' ? (
+          <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey}
+            disabled={feedback !== null} placeholder="Type what you hear..."
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-center text-base focus:outline-none focus:border-blue-500 disabled:opacity-50 resize-none"
+            rows={2} autoComplete="off" autoCorrect="off" spellCheck="false" />
+        ) : (
+          <input ref={inputRef} type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey}
+            disabled={feedback !== null} placeholder="Type what you hear..."
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-center text-lg focus:outline-none focus:border-blue-500 disabled:opacity-50"
+            autoComplete="off" autoCorrect="off" spellCheck="false" />
+        )}
+
+        {feedback && (
+          <div className="mt-6 text-center fade-in">
+            {feedback.correct ? (
+              <p className="text-green-400 text-lg font-semibold">Correct!</p>
+            ) : (
+              <div>
+                <p className="text-red-400 text-lg font-semibold mb-1">Not quite</p>
+                <p className="text-gray-300">Answer: <span className="font-bold text-white">{feedback.answer}</span></p>
+              </div>
+            )}
+            <button onClick={next} className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium">Next (Enter)</button>
+          </div>
+        )}
+        {!feedback && input.trim() && (
+          <button onClick={check} className="mt-4 w-full py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium">Check (Enter)</button>
+        )}
+      </div>
+
+      <div className="flex justify-center gap-8 mt-6 text-sm text-gray-500">
+        <span className="text-green-400">{sessionStats.correct} correct</span>
+        <span className="text-red-400">{sessionStats.wrong} wrong</span>
       </div>
     </div>
   );
@@ -659,12 +1020,7 @@ function VocabPractice() {
   const [flipped, setFlipped] = useState(false);
   const [shuffledWords, setShuffledWords] = useState([]);
 
-  useEffect(() => {
-    setShuffledWords(shuffle(VOCAB[selectedCat]));
-    setCardIdx(0);
-    setFlipped(false);
-  }, [selectedCat]);
-
+  useEffect(() => { setShuffledWords(shuffle(VOCAB[selectedCat])); setCardIdx(0); setFlipped(false); }, [selectedCat]);
   const word = shuffledWords[cardIdx];
   if (!word) return null;
 
@@ -676,12 +1032,8 @@ function VocabPractice() {
   const rate = (correct) => {
     SRS.updateCard(id, correct);
     setFlipped(false);
-    if (cardIdx < shuffledWords.length - 1) {
-      setCardIdx(cardIdx + 1);
-    } else {
-      setShuffledWords(shuffle(VOCAB[selectedCat]));
-      setCardIdx(0);
-    }
+    if (cardIdx < shuffledWords.length - 1) setCardIdx(cardIdx + 1);
+    else { setShuffledWords(shuffle(VOCAB[selectedCat])); setCardIdx(0); }
   };
 
   return (
@@ -690,51 +1042,41 @@ function VocabPractice() {
         <h2 className="text-xl font-bold">Vocabulary</h2>
         <button onClick={() => setDirection(d => d === 'en2sv' ? 'sv2en' : 'en2sv')}
           className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs">
-          {direction === 'en2sv' ? 'EN &rarr; SV' : 'SV &rarr; EN'}
+          {direction === 'en2sv' ? 'EN \u2192 SV' : 'SV \u2192 EN'}
         </button>
       </div>
-
       <div className="flex flex-wrap gap-2 mb-6">
         {categories.map(cat => (
           <button key={cat} onClick={() => setSelectedCat(cat)}
-            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-              selectedCat === cat ? 'bg-cyan-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
-            }`}>
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${selectedCat === cat ? 'bg-cyan-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
             {cat}
           </button>
         ))}
       </div>
-
       <div className="card-flip cursor-pointer" onClick={() => setFlipped(!flipped)} style={{ minHeight: 260 }}>
         <div className={`card-inner relative w-full ${flipped ? 'flipped' : ''}`} style={{ minHeight: 260 }}>
           <div className="card-front absolute inset-0 bg-gray-900 rounded-xl p-8 border border-gray-800 flex flex-col items-center justify-center">
             <p className="text-sm text-gray-500 mb-4">{cardIdx + 1}/{shuffledWords.length}</p>
             <p className="text-2xl font-semibold text-center">{front}</p>
-            {direction === 'sv2en' && (gender === 'en' || gender === 'ett') && (
-              <span className="mt-2 text-xs text-gray-500">({gender})</span>
-            )}
-            <p className="text-sm text-gray-600 mt-6">tap to flip</p>
+            {direction === 'sv2en' && (gender === 'en' || gender === 'ett') && <span className="mt-2 text-xs text-gray-500">({gender})</span>}
+            {direction === 'sv2en' && <SpeakButton text={word[0]} />}
+            <p className="text-sm text-gray-600 mt-4">tap to flip</p>
           </div>
           <div className="card-back absolute inset-0 bg-gray-900 rounded-xl p-8 border border-blue-800 flex flex-col items-center justify-center">
-            <p className="text-2xl font-bold text-center text-blue-400">{back}</p>
-            {direction === 'en2sv' && (gender === 'en' || gender === 'ett') && (
-              <span className="mt-2 text-sm text-gray-400">({gender})</span>
-            )}
+            <div className="flex items-center gap-2">
+              <p className="text-2xl font-bold text-center text-blue-400">{back}</p>
+              {direction === 'en2sv' && <SpeakButton text={word[0]} />}
+            </div>
+            {direction === 'en2sv' && (gender === 'en' || gender === 'ett') && <span className="mt-2 text-sm text-gray-400">({gender})</span>}
             <p className="text-sm text-gray-500 mt-3 text-center italic">{word[3]}</p>
+            <SpeakButton text={word[3]} size="sm" />
           </div>
         </div>
       </div>
-
       {flipped && (
         <div className="flex gap-4 justify-center mt-6 fade-in">
-          <button onClick={() => rate(false)}
-            className="px-6 py-2 bg-red-900/50 hover:bg-red-800 border border-red-800 rounded-lg text-sm font-medium text-red-300">
-            Again
-          </button>
-          <button onClick={() => rate(true)}
-            className="px-6 py-2 bg-green-900/50 hover:bg-green-800 border border-green-800 rounded-lg text-sm font-medium text-green-300">
-            Got it
-          </button>
+          <button onClick={() => rate(false)} className="px-6 py-2 bg-red-900/50 hover:bg-red-800 border border-red-800 rounded-lg text-sm font-medium text-red-300">Again</button>
+          <button onClick={() => rate(true)} className="px-6 py-2 bg-green-900/50 hover:bg-green-800 border border-green-800 rounded-lg text-sm font-medium text-green-300">Got it</button>
         </div>
       )}
     </div>
@@ -744,119 +1086,108 @@ function VocabPractice() {
 // ---- Reference Table ----
 function Reference() {
   const [search, setSearch] = useState('');
+  const [tab, setTab] = useState('verbs'); // verbs | phrases | prepositions
 
   const filtered = VERBS.filter(v =>
     v.some(form => typeof form === 'string' && form.toLowerCase().includes(search.toLowerCase())) ||
     ALL_TENSES.some(t => { const f = t.getForm(v); return f && f.toLowerCase().includes(search.toLowerCase()); })
   );
-
-  // Group filtered verbs by their group id
-  const groupedVerbs = VERB_GROUPS.map(group => ({
-    ...group,
-    verbs: filtered.filter(v => v[6] === group.id),
-  })).filter(g => g.verbs.length > 0);
-
+  const groupedVerbs = VERB_GROUPS.map(group => ({ ...group, verbs: filtered.filter(v => v[6] === group.id) })).filter(g => g.verbs.length > 0);
   const colCount = ALL_TENSES.length + 1;
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 fade-in">
-      <h2 className="text-xl font-bold mb-4">Verb Reference - All Tenses</h2>
-      <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-        placeholder="Search verbs..."
-        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 mb-4 text-sm focus:outline-none focus:border-blue-500"
-      />
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-800">
-              <th className="text-left py-2 px-2 text-gray-400 font-medium whitespace-nowrap">English</th>
-              {ALL_TENSES.map(t => (
-                <th key={t.key} className={`text-left py-2 px-2 font-medium whitespace-nowrap ${t.color}`}>{t.label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {groupedVerbs.map(group => (
-              <React.Fragment key={group.id}>
-                <tr className="bg-gray-800/60">
-                  <td colSpan={colCount} className="py-3 px-2">
-                    <span className="font-bold text-blue-300">{group.label}</span>
-                    <span className="ml-3 text-xs text-gray-400">{group.pattern}</span>
-                    <div className="text-xs text-gray-500 mt-0.5 italic">{group.example}</div>
-                  </td>
-                </tr>
-                {group.verbs.map((v, i) => (
-                  <tr key={`${group.id}-${i}`} className="border-b border-gray-900 hover:bg-gray-900/50">
-                    <td className="py-2 px-2 text-gray-300 whitespace-nowrap">{v[5]}</td>
-                    {ALL_TENSES.map(t => (
-                      <td key={t.key} className="py-2 px-2 text-gray-100 whitespace-nowrap">{t.getForm(v) || '—'}</td>
-                    ))}
-                  </tr>
-                ))}
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
+      <h2 className="text-xl font-bold mb-4">Reference</h2>
+      <div className="flex gap-2 mb-4">
+        {[['verbs', 'Verbs'], ['phrases', 'Phrases'], ['prepositions', 'Prepositions']].map(([k, l]) => (
+          <button key={k} onClick={() => setTab(k)}
+            className={`px-3 py-1.5 rounded text-sm font-medium ${tab === k ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+            {l}
+          </button>
+        ))}
       </div>
 
-      {filtered.length === 0 && (
-        <p className="text-center text-gray-500 py-8">No verbs match your search.</p>
+      {tab === 'verbs' && (<>
+        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search verbs..."
+          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 mb-4 text-sm focus:outline-none focus:border-blue-500" />
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-800">
+                <th className="text-left py-2 px-2 text-gray-400 font-medium whitespace-nowrap">English</th>
+                {ALL_TENSES.map(t => <th key={t.key} className={`text-left py-2 px-2 font-medium whitespace-nowrap ${t.color}`}>{t.label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {groupedVerbs.map(group => (
+                <React.Fragment key={group.id}>
+                  <tr className="bg-gray-800/60">
+                    <td colSpan={colCount} className="py-3 px-2">
+                      <span className="font-bold text-blue-300">{group.label}</span>
+                      <span className="ml-3 text-xs text-gray-400">{group.pattern}</span>
+                      <div className="text-xs text-gray-500 mt-0.5 italic">{group.example}</div>
+                    </td>
+                  </tr>
+                  {group.verbs.map((v, i) => (
+                    <tr key={`${group.id}-${i}`} className="border-b border-gray-900 hover:bg-gray-900/50">
+                      <td className="py-2 px-2 text-gray-300 whitespace-nowrap">{v[5]}</td>
+                      {ALL_TENSES.map(t => <td key={t.key} className="py-2 px-2 text-gray-100 whitespace-nowrap">{t.getForm(v) || '\u2014'}</td>)}
+                    </tr>
+                  ))}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-8 bg-gray-900 rounded-xl p-6 border border-gray-800">
+          <h3 className="font-bold text-lg mb-3">Swedish Tense Cheat Sheet</h3>
+          <div className="space-y-3 text-sm text-gray-300">
+            <div><span className="text-blue-400 font-medium">Infinitiv / Infinitive:</span> Base form. Used after modal verbs (kan, vill, ska, m&aring;ste). <span className="text-gray-500">Jag vill <b>&auml;ta</b>.</span></div>
+            <div><span className="text-green-400 font-medium">Presens / Present:</span> Happening now or generally true. <span className="text-gray-500">Jag <b>&auml;ter</b> frukost.</span></div>
+            <div><span className="text-yellow-400 font-medium">Preteritum / Simple Past:</span> Completed action. <span className="text-gray-500">Jag <b>&aring;t</b> ig&aring;r.</span></div>
+            <div><span className="text-teal-400 font-medium">Perfekt / Present Perfect:</span> <b>har</b> + supinum. Past with present relevance. <span className="text-gray-500">Jag <b>har &auml;tit</b> lunch.</span></div>
+            <div><span className="text-orange-400 font-medium">Pluskvamperfekt / Past Perfect:</span> <b>hade</b> + supinum. Before another past event. <span className="text-gray-500">Jag <b>hade &auml;tit</b> innan hon kom.</span></div>
+            <div><span className="text-pink-400 font-medium">Futurum / Future:</span> <b>ska</b> + infinitiv. <span className="text-gray-500">Jag <b>ska &auml;ta</b> middag.</span></div>
+            <div><span className="text-purple-400 font-medium">Supinum / Past Participle:</span> Used in perfekt/pluskvamperfekt. <span className="text-gray-500">har <b>&auml;tit</b>, hade <b>skrivit</b></span></div>
+            <div><span className="text-red-400 font-medium">Imperativ / Imperative:</span> Commands. <span className="text-gray-500"><b>&Auml;t</b> din mat!</span></div>
+          </div>
+        </div>
+      </>)}
+
+      {tab === 'phrases' && (
+        <div className="space-y-2">
+          {PHRASES.map((p, i) => (
+            <div key={i} className="bg-gray-900 rounded-lg p-4 border border-gray-800 flex items-start gap-3">
+              <SpeakButton text={p[0]} size="sm" />
+              <div className="flex-1">
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <span className="font-medium text-emerald-400">{p[0]}</span>
+                  <span className="text-gray-400 text-sm">= {p[1]}</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1 italic">{p[3]}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
-      <div className="mt-8 bg-gray-900 rounded-xl p-6 border border-gray-800">
-        <h3 className="font-bold text-lg mb-3">Swedish Tense Cheat Sheet</h3>
-        <div className="space-y-3 text-sm text-gray-300">
-          <div>
-            <span className="text-blue-400 font-medium">Infinitiv / Infinitive:</span> Base form. Used after modal verbs (kan, vill, ska, m&aring;ste).
-            <span className="text-gray-500 ml-2">Jag vill <b>&auml;ta</b>.</span>
-          </div>
-          <div>
-            <span className="text-green-400 font-medium">Presens / Present:</span> Happening now or generally true.
-            <span className="text-gray-500 ml-2">Jag <b>&auml;ter</b> frukost.</span>
-          </div>
-          <div>
-            <span className="text-yellow-400 font-medium">Preteritum / Simple Past:</span> Completed action in the past.
-            <span className="text-gray-500 ml-2">Jag <b>&aring;t</b> ig&aring;r.</span>
-          </div>
-          <div>
-            <span className="text-teal-400 font-medium">Perfekt / Present Perfect:</span> <b>har</b> + supinum. Past action with present relevance.
-            <span className="text-gray-500 ml-2">Jag <b>har &auml;tit</b> lunch.</span>
-          </div>
-          <div>
-            <span className="text-orange-400 font-medium">Pluskvamperfekt / Past Perfect:</span> <b>hade</b> + supinum. Action completed before another past event.
-            <span className="text-gray-500 ml-2">Jag <b>hade &auml;tit</b> innan hon kom.</span>
-          </div>
-          <div>
-            <span className="text-pink-400 font-medium">Futurum / Future:</span> <b>ska</b> + infinitiv. Planned or intended action.
-            <span className="text-gray-500 ml-2">Jag <b>ska &auml;ta</b> middag.</span>
-          </div>
-          <div>
-            <span className="text-purple-400 font-medium">Supinum / Past Participle:</span> The verb form used in perfekt/pluskvamperfekt. Not used alone.
-            <span className="text-gray-500 ml-2">har <b>&auml;tit</b>, hade <b>skrivit</b></span>
-          </div>
-          <div>
-            <span className="text-red-400 font-medium">Imperativ / Imperative:</span> Commands / requests.
-            <span className="text-gray-500 ml-2"><b>&Auml;t</b> din mat!</span>
-          </div>
+      {tab === 'prepositions' && (
+        <div className="space-y-2">
+          {PREPOSITIONS.map((p, i) => (
+            <div key={i} className="bg-gray-900 rounded-lg p-4 border border-gray-800 flex items-start gap-3">
+              <SpeakButton text={p[0].replace('___', p[1])} size="sm" />
+              <div className="flex-1">
+                <p className="font-medium">{p[0].replace('___', <span className="text-rose-400 font-bold">{p[1]}</span>)}</p>
+                <p className="font-medium">
+                  {p[0].split('___')[0]}<span className="text-rose-400 font-bold">{p[1]}</span>{p[0].split('___')[1]}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">{p[2]}</p>
+              </div>
+            </div>
+          ))}
         </div>
-
-        <h4 className="font-bold mt-6 mb-2">Verb Groups</h4>
-        <div className="space-y-2 text-sm text-gray-300">
-          <div><span className="text-blue-300 font-medium">Group 1 (-ar):</span> talar, talade, talat &mdash; Most regular, largest group</div>
-          <div><span className="text-blue-300 font-medium">Group 2 (-er):</span> ringer, ringde, ringt &mdash; Second conjugation</div>
-          <div><span className="text-blue-300 font-medium">Group 3 (-r):</span> bor, bodde, bott &mdash; Short verbs</div>
-          <div><span className="text-blue-300 font-medium">Group 4 (strong):</span> skriver, skrev, skrivit &mdash; Vowel changes, must memorize</div>
-        </div>
-
-        <h4 className="font-bold mt-6 mb-2">Compound Tense Formation</h4>
-        <div className="space-y-2 text-sm text-gray-300">
-          <div><span className="text-teal-400 font-medium">Perfekt:</span> <b>har</b> + supinum &rarr; Jag har talat, du har skrivit</div>
-          <div><span className="text-orange-400 font-medium">Pluskvamperfekt:</span> <b>hade</b> + supinum &rarr; Jag hade talat, du hade skrivit</div>
-          <div><span className="text-pink-400 font-medium">Futurum:</span> <b>ska</b> + infinitiv &rarr; Jag ska tala, du ska skriva</div>
-          <div className="text-gray-500 text-xs mt-2">Also: <b>kommer att</b> + infinitiv for future (Jag kommer att tala) &mdash; more neutral/formal than ska</div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -869,95 +1200,65 @@ function Progress() {
     let count = 0;
     VERBS.forEach(v => { ALL_TENSES.forEach(t => { if (t.getForm(v) !== null) count++; }); });
     Object.values(VOCAB).forEach(w => count += w.length);
+    count += PHRASES.length + SENTENCES.length + PREPOSITIONS.length;
     return count;
   }, []);
   const pct = Math.round((stats.mastered / Math.max(1, totalCards)) * 100);
   const accuracy = stats.totalCorrect + stats.totalWrong > 0
     ? Math.round((stats.totalCorrect / (stats.totalCorrect + stats.totalWrong)) * 100) : 0;
 
-  const verbMastery = VERBS.map((v, vi) => {
-    const tenses = ALL_TENSES.map((t, ti) => {
-      if (t.getForm(v) === null) return null;
-      const card = data[`verb:${vi}:${ti}`];
-      return card ? card.box : -1;
-    });
-    return { verb: v, tenses };
-  });
-
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 fade-in">
+    <div className="max-w-3xl mx-auto px-4 py-8 fade-in">
       <h2 className="text-xl font-bold mb-6">Your Progress</h2>
-
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
         <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 text-center">
-          <p className="text-3xl font-bold text-blue-400">{stats.total}</p>
-          <p className="text-xs text-gray-500">Cards Seen</p>
+          <p className="text-3xl font-bold text-blue-400">{stats.total}</p><p className="text-xs text-gray-500">Cards Seen</p>
         </div>
         <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 text-center">
-          <p className="text-3xl font-bold text-green-400">{stats.mastered}</p>
-          <p className="text-xs text-gray-500">Mastered</p>
+          <p className="text-3xl font-bold text-green-400">{stats.mastered}</p><p className="text-xs text-gray-500">Mastered</p>
         </div>
         <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 text-center">
-          <p className="text-3xl font-bold text-yellow-400">{stats.learning}</p>
-          <p className="text-xs text-gray-500">Learning</p>
+          <p className="text-3xl font-bold text-yellow-400">{stats.learning}</p><p className="text-xs text-gray-500">Learning</p>
         </div>
         <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 text-center">
-          <p className="text-3xl font-bold text-purple-400">{accuracy}%</p>
-          <p className="text-xs text-gray-500">Accuracy</p>
+          <p className="text-3xl font-bold text-purple-400">{accuracy}%</p><p className="text-xs text-gray-500">Accuracy</p>
         </div>
       </div>
-
       <div className="bg-gray-900 rounded-xl p-6 border border-gray-800 mb-8">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium">Overall Mastery</span>
           <span className="text-sm text-gray-400">{stats.mastered}/{totalCards} ({pct}%)</span>
         </div>
         <div className="h-3 bg-gray-800 rounded-full overflow-hidden">
-          <div className="h-full rounded-full transition-all"
-            style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)' }} />
+          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)' }} />
         </div>
-        <p className="text-xs text-gray-500 mt-2">Master all {totalCards} cards to reach B1 verb & vocabulary proficiency</p>
       </div>
 
-      <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
-        <h3 className="font-bold mb-4">Verb Mastery Grid (all 8 tenses)</h3>
-        <div className="overflow-x-auto">
-          <div className="grid gap-1 text-xs" style={{ minWidth: 600 }}>
-            <div className="grid grid-cols-9 gap-1 mb-1">
-              <span className="text-gray-500">Verb</span>
-              {ALL_TENSES.map(t => <span key={t.key} className={`${t.color} text-center`} title={t.label}>{t.label.slice(0,4)}</span>)}
+      {/* Card type breakdown */}
+      <div className="bg-gray-900 rounded-xl p-6 border border-gray-800 mb-8">
+        <h3 className="font-bold mb-4">Card Breakdown</h3>
+        <div className="space-y-3 text-sm">
+          {[
+            ['Verb forms', `${VERBS.length} verbs x 8 tenses`, 'text-blue-400'],
+            ['Vocabulary', `${Object.values(VOCAB).reduce((s, w) => s + w.length, 0)} words`, 'text-cyan-400'],
+            ['Sentences', `${SENTENCES.length} sentences`, 'text-amber-400'],
+            ['Phrases', `${PHRASES.length} phrases`, 'text-emerald-400'],
+            ['Prepositions', `${PREPOSITIONS.length} drills`, 'text-rose-400'],
+          ].map(([label, count, color]) => (
+            <div key={label} className="flex justify-between">
+              <span className={color}>{label}</span>
+              <span className="text-gray-400">{count}</span>
             </div>
-            {verbMastery.slice(0, 30).map((vm, i) => (
-              <div key={i} className="grid grid-cols-9 gap-1">
-                <span className="text-gray-400 truncate" title={vm.verb[5]}>{vm.verb[5]}</span>
-                {vm.tenses.map((box, ti) => (
-                  <div key={ti} className={`h-4 rounded text-center ${
-                    box === null ? 'bg-gray-900' :
-                    box === -1 ? 'bg-gray-800' :
-                    box === 0 ? 'bg-red-900/50' :
-                    box < 3 ? 'bg-yellow-900/50' :
-                    box < 5 ? 'bg-blue-900/50' :
-                    'bg-green-900/50'
-                  }`} />
-                ))}
-              </div>
-            ))}
+          ))}
+          <div className="border-t border-gray-800 pt-2 flex justify-between font-bold">
+            <span>Total</span><span>{totalCards} cards</span>
           </div>
-        </div>
-        <div className="flex flex-wrap gap-4 mt-3 text-xs text-gray-500">
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-800" /> New</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-900/50" /> Weak</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-900/50" /> Learning</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-900/50" /> Good</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-900/50" /> Mastered</span>
         </div>
       </div>
 
       <div className="mt-8 text-center">
         <button onClick={() => { if (confirm('Reset all progress?')) { SRS.reset(); window.location.reload(); } }}
-          className="text-xs text-gray-600 hover:text-red-400 transition-colors">
-          Reset all progress
-        </button>
+          className="text-xs text-gray-600 hover:text-red-400 transition-colors">Reset all progress</button>
       </div>
     </div>
   );
@@ -967,18 +1268,17 @@ function Progress() {
 function App() {
   const [view, setView] = useState('study');
   const [stats, setStats] = useState(SRS.getStats());
-
-  useEffect(() => {
-    const interval = setInterval(() => setStats(SRS.getStats()), 3000);
-    return () => clearInterval(interval);
-  }, []);
+  useEffect(() => { const i = setInterval(() => setStats(SRS.getStats()), 3000); return () => clearInterval(i); }, []);
 
   return (
     <div className="min-h-screen">
       <Nav view={view} setView={setView} stats={stats} />
       {view === 'study' && <StudyMode />}
       {view === 'verbs' && <VerbDrills />}
-      {view === 'vocab' && <VocabPractice />}
+      {view === 'sentences' && <SentenceBuilder />}
+      {view === 'phrases' && <PhrasePractice />}
+      {view === 'prepositions' && <PrepositionDrill />}
+      {view === 'listen' && <ListenMode />}
       {view === 'reference' && <Reference />}
       {view === 'stats' && <Progress />}
     </div>
