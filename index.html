@@ -31,88 +31,101 @@
 
 // ============================================================
 // SWEDISH VERB DATABASE — Top 65 verbs for A2 to B1
-// Format: [infinitiv, presens, preteritum, supinum, imperativ, english]
+// Format: [infinitiv, presens, preteritum, supinum, imperativ, english, group]
 // Compound tenses are derived:
 //   Perfekt = har + supinum
 //   Pluskvamperfekt = hade + supinum
 //   Futurum = ska + infinitiv
 // ============================================================
+const VERB_GROUPS = [
+  { id: "1",  label: "Grupp 1",  example: "Prata! att prata / pratar / pratade / har pratat / ska prata",   pattern: "-ar / -ade / -at" },
+  { id: "2a", label: "Grupp 2a", example: "Ring! att ringa / ringer / ringde / har ringt / ska ringa",       pattern: "-er / -de / -t" },
+  { id: "2b", label: "Grupp 2b", example: "Läs! att läsa / läser / läste / har läst / ska läsa",            pattern: "-er / -te / -t" },
+  { id: "3",  label: "Grupp 3",  example: "Må! att må / mår / mådde / har mått / ska må",                   pattern: "-r / -dde / -tt" },
+  { id: "4a", label: "Grupp 4a", example: "Ät! att äta / äter / åt / har ätit / ska äta",                   pattern: "Strong verbs — supinum in -it" },
+  { id: "4b", label: "Grupp 4b", example: "Gå! att gå / går / gick / har gått / ska gå",                    pattern: "Strong verbs — irregular supinum" },
+];
+
 const VERBS = [
-  // Group 1 verbs (-ar)
-  ["tala", "talar", "talade", "talat", "tala", "to speak"],
-  ["arbeta", "arbetar", "arbetade", "arbetat", "arbeta", "to work"],
-  ["handla", "handlar", "handlade", "handlat", "handla", "to shop / to act"],
-  ["laga", "lagar", "lagade", "lagat", "laga", "to cook / to fix"],
-  ["titta", "tittar", "tittade", "tittat", "titta", "to look / to watch"],
-  ["prata", "pratar", "pratade", "pratat", "prata", "to talk / to chat"],
-  ["betala", "betalar", "betalade", "betalat", "betala", "to pay"],
-  ["fråga", "frågar", "frågade", "frågat", "fråga", "to ask"],
-  ["svara", "svarar", "svarade", "svarat", "svara", "to answer"],
-  ["öppna", "öppnar", "öppnade", "öppnat", "öppna", "to open"],
-  ["stänga", "stänger", "stängde", "stängt", "stäng", "to close"],
-  ["börja", "börjar", "började", "börjat", "börja", "to begin"],
-  ["sluta", "slutar", "slutade", "slutat", "sluta", "to stop / to end"],
-  ["använda", "använder", "använde", "använt", "använd", "to use"],
-  ["behöva", "behöver", "behövde", "behövt", "behöv", "to need"],
-  ["älska", "älskar", "älskade", "älskat", "älska", "to love"],
-  ["hata", "hatar", "hatade", "hatat", "hata", "to hate"],
-  ["resa", "reser", "reste", "rest", "res", "to travel"],
-  ["leva", "lever", "levde", "levt", "lev", "to live (be alive)"],
-  ["spela", "spelar", "spelade", "spelat", "spela", "to play"],
-  ["träna", "tränar", "tränade", "tränat", "träna", "to exercise / to train"],
-  ["studera", "studerar", "studerade", "studerat", "studera", "to study"],
-  ["berätta", "berättar", "berättade", "berättat", "berätta", "to tell / to narrate"],
-  ["förklara", "förklarar", "förklarade", "förklarat", "förklara", "to explain"],
-  ["försöka", "försöker", "försökte", "försökt", "försök", "to try"],
+  // Grupp 1: -ar / -ade / -at
+  ["tala", "talar", "talade", "talat", "tala", "to speak", "1"],
+  ["arbeta", "arbetar", "arbetade", "arbetat", "arbeta", "to work", "1"],
+  ["handla", "handlar", "handlade", "handlat", "handla", "to shop / to act", "1"],
+  ["laga", "lagar", "lagade", "lagat", "laga", "to cook / to fix", "1"],
+  ["titta", "tittar", "tittade", "tittat", "titta", "to look / to watch", "1"],
+  ["prata", "pratar", "pratade", "pratat", "prata", "to talk / to chat", "1"],
+  ["betala", "betalar", "betalade", "betalat", "betala", "to pay", "1"],
+  ["fråga", "frågar", "frågade", "frågat", "fråga", "to ask", "1"],
+  ["svara", "svarar", "svarade", "svarat", "svara", "to answer", "1"],
+  ["öppna", "öppnar", "öppnade", "öppnat", "öppna", "to open", "1"],
+  ["börja", "börjar", "började", "börjat", "börja", "to begin", "1"],
+  ["sluta", "slutar", "slutade", "slutat", "sluta", "to stop / to end", "1"],
+  ["älska", "älskar", "älskade", "älskat", "älska", "to love", "1"],
+  ["hata", "hatar", "hatade", "hatat", "hata", "to hate", "1"],
+  ["spela", "spelar", "spelade", "spelat", "spela", "to play", "1"],
+  ["träna", "tränar", "tränade", "tränat", "träna", "to exercise / to train", "1"],
+  ["studera", "studerar", "studerade", "studerat", "studera", "to study", "1"],
+  ["berätta", "berättar", "berättade", "berättat", "berätta", "to tell / to narrate", "1"],
+  ["förklara", "förklarar", "förklarade", "förklarat", "förklara", "to explain", "1"],
+  ["hitta", "hittar", "hittade", "hittat", "hitta", "to find", "1"],
 
-  // Group 2 verbs (-er)
-  ["ringa", "ringer", "ringde", "ringt", "ring", "to call / to ring"],
-  ["köpa", "köper", "köpte", "köpt", "köp", "to buy"],
-  ["läsa", "läser", "läste", "läst", "läs", "to read"],
-  ["köra", "kör", "körde", "kört", "kör", "to drive"],
-  ["bygga", "bygger", "byggde", "byggt", "bygg", "to build"],
-  ["följa", "följer", "följde", "följt", "följ", "to follow"],
-  ["känna", "känner", "kände", "känt", "känn", "to feel / to know (someone)"],
-  ["lära", "lär", "lärde", "lärt", "lär", "to teach / to learn"],
-  ["höra", "hör", "hörde", "hört", "hör", "to hear"],
-  ["glömma", "glömmer", "glömde", "glömt", "glöm", "to forget"],
-  ["tycka", "tycker", "tyckte", "tyckt", "tyck", "to think (opinion)"],
-  ["tänka", "tänker", "tänkte", "tänkt", "tänk", "to think (reflect)"],
+  // Grupp 2a: -er / -de / -t (voiced consonant before ending)
+  ["ringa", "ringer", "ringde", "ringt", "ring", "to call / to ring", "2a"],
+  ["bygga", "bygger", "byggde", "byggt", "bygg", "to build", "2a"],
+  ["följa", "följer", "följde", "följt", "följ", "to follow", "2a"],
+  ["känna", "känner", "kände", "känt", "känn", "to feel / to know (someone)", "2a"],
+  ["lära", "lär", "lärde", "lärt", "lär", "to teach / to learn", "2a"],
+  ["höra", "hör", "hörde", "hört", "hör", "to hear", "2a"],
+  ["glömma", "glömmer", "glömde", "glömt", "glöm", "to forget", "2a"],
+  ["stänga", "stänger", "stängde", "stängt", "stäng", "to close", "2a"],
+  ["använda", "använder", "använde", "använt", "använd", "to use", "2a"],
+  ["behöva", "behöver", "behövde", "behövt", "behöv", "to need", "2a"],
+  ["leva", "lever", "levde", "levt", "lev", "to live (be alive)", "2a"],
+  ["köra", "kör", "körde", "kört", "kör", "to drive", "2a"],
 
-  // Group 3 verbs (-r)
-  ["bo", "bor", "bodde", "bott", "bo", "to live (reside)"],
-  ["tro", "tror", "trodde", "trott", "tro", "to believe"],
-  ["må", "mår", "mådde", "mått", "må", "to feel (health)"],
-  ["sy", "syr", "sydde", "sytt", "sy", "to sew"],
+  // Grupp 2b: -er / -te / -t (voiceless consonant before ending)
+  ["köpa", "köper", "köpte", "köpt", "köp", "to buy", "2b"],
+  ["läsa", "läser", "läste", "läst", "läs", "to read", "2b"],
+  ["tycka", "tycker", "tyckte", "tyckt", "tyck", "to think (opinion)", "2b"],
+  ["tänka", "tänker", "tänkte", "tänkt", "tänk", "to think (reflect)", "2b"],
+  ["försöka", "försöker", "försökte", "försökt", "försök", "to try", "2b"],
+  ["resa", "reser", "reste", "rest", "res", "to travel", "2b"],
 
-  // Group 4 — Strong / Irregular verbs
-  ["skriva", "skriver", "skrev", "skrivit", "skriv", "to write"],
-  ["dricka", "dricker", "drack", "druckit", "drick", "to drink"],
-  ["ge", "ger", "gav", "gett", "ge", "to give"],
-  ["ta", "tar", "tog", "tagit", "ta", "to take"],
-  ["komma", "kommer", "kom", "kommit", "kom", "to come"],
-  ["gå", "går", "gick", "gått", "gå", "to go / to walk"],
-  ["se", "ser", "såg", "sett", "se", "to see"],
-  ["göra", "gör", "gjorde", "gjort", "gör", "to do / to make"],
-  ["säga", "säger", "sa", "sagt", "säg", "to say"],
-  ["veta", "vet", "visste", "vetat", "vet", "to know (fact)"],
-  ["vara", "är", "var", "varit", "var", "to be"],
-  ["ha", "har", "hade", "haft", "ha", "to have"],
-  ["bli", "blir", "blev", "blivit", "bli", "to become"],
-  ["kunna", "kan", "kunde", "kunnat", "-", "can / to be able to"],
-  ["vilja", "vill", "ville", "velat", "-", "to want"],
-  ["ska", "ska", "skulle", "-", "-", "shall / will"],
-  ["få", "får", "fick", "fått", "få", "to get / may"],
-  ["äta", "äter", "åt", "ätit", "ät", "to eat"],
-  ["sova", "sover", "sov", "sovit", "sov", "to sleep"],
-  ["ligga", "ligger", "låg", "legat", "ligg", "to lie (position)"],
-  ["sitta", "sitter", "satt", "suttit", "sitt", "to sit"],
-  ["stå", "står", "stod", "stått", "stå", "to stand"],
-  ["sätta", "sätter", "satte", "satt", "sätt", "to put / to set"],
-  ["lägga", "lägger", "la/lade", "lagt", "lägg", "to put / to lay"],
-  ["hitta", "hittar", "hittade", "hittat", "hitta", "to find"],
-  ["förstå", "förstår", "förstod", "förstått", "förstå", "to understand"],
-  ["finnas", "finns", "fanns", "funnits", "-", "to exist / there is"],
+  // Grupp 3: -r / -dde / -tt (short verbs)
+  ["bo", "bor", "bodde", "bott", "bo", "to live (reside)", "3"],
+  ["tro", "tror", "trodde", "trott", "tro", "to believe", "3"],
+  ["må", "mår", "mådde", "mått", "må", "to feel (health)", "3"],
+  ["sy", "syr", "sydde", "sytt", "sy", "to sew", "3"],
+
+  // Grupp 4a: strong verbs — supinum in -it
+  ["skriva", "skriver", "skrev", "skrivit", "skriv", "to write", "4a"],
+  ["dricka", "dricker", "drack", "druckit", "drick", "to drink", "4a"],
+  ["ta", "tar", "tog", "tagit", "ta", "to take", "4a"],
+  ["komma", "kommer", "kom", "kommit", "kom", "to come", "4a"],
+  ["bli", "blir", "blev", "blivit", "bli", "to become", "4a"],
+  ["äta", "äter", "åt", "ätit", "ät", "to eat", "4a"],
+  ["sova", "sover", "sov", "sovit", "sov", "to sleep", "4a"],
+  ["sitta", "sitter", "satt", "suttit", "sitt", "to sit", "4a"],
+  ["finnas", "finns", "fanns", "funnits", "-", "to exist / there is", "4a"],
+
+  // Grupp 4b: strong verbs — irregular supinum (-tt, -rt, -ft, etc.)
+  ["gå", "går", "gick", "gått", "gå", "to go / to walk", "4b"],
+  ["ge", "ger", "gav", "gett", "ge", "to give", "4b"],
+  ["se", "ser", "såg", "sett", "se", "to see", "4b"],
+  ["göra", "gör", "gjorde", "gjort", "gör", "to do / to make", "4b"],
+  ["säga", "säger", "sa", "sagt", "säg", "to say", "4b"],
+  ["veta", "vet", "visste", "vetat", "vet", "to know (fact)", "4b"],
+  ["vara", "är", "var", "varit", "var", "to be", "4b"],
+  ["ha", "har", "hade", "haft", "ha", "to have", "4b"],
+  ["kunna", "kan", "kunde", "kunnat", "-", "can / to be able to", "4b"],
+  ["vilja", "vill", "ville", "velat", "-", "to want", "4b"],
+  ["ska", "ska", "skulle", "-", "-", "shall / will", "4b"],
+  ["få", "får", "fick", "fått", "få", "to get / may", "4b"],
+  ["ligga", "ligger", "låg", "legat", "ligg", "to lie (position)", "4b"],
+  ["stå", "står", "stod", "stått", "stå", "to stand", "4b"],
+  ["sätta", "sätter", "satte", "satt", "sätt", "to put / to set", "4b"],
+  ["lägga", "lägger", "la/lade", "lagt", "lägg", "to put / to lay", "4b"],
+  ["förstå", "förstår", "förstod", "förstått", "förstå", "to understand", "4b"],
 ];
 
 // ============================================================
@@ -733,9 +746,17 @@ function Reference() {
   const [search, setSearch] = useState('');
 
   const filtered = VERBS.filter(v =>
-    v.some(form => form.toLowerCase().includes(search.toLowerCase())) ||
+    v.some(form => typeof form === 'string' && form.toLowerCase().includes(search.toLowerCase())) ||
     ALL_TENSES.some(t => { const f = t.getForm(v); return f && f.toLowerCase().includes(search.toLowerCase()); })
   );
+
+  // Group filtered verbs by their group id
+  const groupedVerbs = VERB_GROUPS.map(group => ({
+    ...group,
+    verbs: filtered.filter(v => v[6] === group.id),
+  })).filter(g => g.verbs.length > 0);
+
+  const colCount = ALL_TENSES.length + 1;
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 fade-in">
@@ -756,13 +777,24 @@ function Reference() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((v, i) => (
-              <tr key={i} className="border-b border-gray-900 hover:bg-gray-900/50">
-                <td className="py-2 px-2 text-gray-300 whitespace-nowrap">{v[5]}</td>
-                {ALL_TENSES.map(t => (
-                  <td key={t.key} className="py-2 px-2 text-gray-100 whitespace-nowrap">{t.getForm(v) || '—'}</td>
+            {groupedVerbs.map(group => (
+              <React.Fragment key={group.id}>
+                <tr className="bg-gray-800/60">
+                  <td colSpan={colCount} className="py-3 px-2">
+                    <span className="font-bold text-blue-300">{group.label}</span>
+                    <span className="ml-3 text-xs text-gray-400">{group.pattern}</span>
+                    <div className="text-xs text-gray-500 mt-0.5 italic">{group.example}</div>
+                  </td>
+                </tr>
+                {group.verbs.map((v, i) => (
+                  <tr key={`${group.id}-${i}`} className="border-b border-gray-900 hover:bg-gray-900/50">
+                    <td className="py-2 px-2 text-gray-300 whitespace-nowrap">{v[5]}</td>
+                    {ALL_TENSES.map(t => (
+                      <td key={t.key} className="py-2 px-2 text-gray-100 whitespace-nowrap">{t.getForm(v) || '—'}</td>
+                    ))}
+                  </tr>
                 ))}
-              </tr>
+              </React.Fragment>
             ))}
           </tbody>
         </table>
@@ -776,35 +808,35 @@ function Reference() {
         <h3 className="font-bold text-lg mb-3">Swedish Tense Cheat Sheet</h3>
         <div className="space-y-3 text-sm text-gray-300">
           <div>
-            <span className="text-blue-400 font-medium">Infinitiv:</span> Base form. Used after modal verbs (kan, vill, ska, m&aring;ste).
+            <span className="text-blue-400 font-medium">Infinitiv / Infinitive:</span> Base form. Used after modal verbs (kan, vill, ska, m&aring;ste).
             <span className="text-gray-500 ml-2">Jag vill <b>&auml;ta</b>.</span>
           </div>
           <div>
-            <span className="text-green-400 font-medium">Presens:</span> Present tense. Happening now or generally true.
+            <span className="text-green-400 font-medium">Presens / Present:</span> Happening now or generally true.
             <span className="text-gray-500 ml-2">Jag <b>&auml;ter</b> frukost.</span>
           </div>
           <div>
-            <span className="text-yellow-400 font-medium">Preteritum:</span> Simple past. Completed action.
+            <span className="text-yellow-400 font-medium">Preteritum / Simple Past:</span> Completed action in the past.
             <span className="text-gray-500 ml-2">Jag <b>&aring;t</b> ig&aring;r.</span>
           </div>
           <div>
-            <span className="text-teal-400 font-medium">Perfekt:</span> Present perfect. <b>har</b> + supinum. Past action with present relevance.
+            <span className="text-teal-400 font-medium">Perfekt / Present Perfect:</span> <b>har</b> + supinum. Past action with present relevance.
             <span className="text-gray-500 ml-2">Jag <b>har &auml;tit</b> lunch.</span>
           </div>
           <div>
-            <span className="text-orange-400 font-medium">Pluskvamperfekt:</span> Past perfect. <b>hade</b> + supinum. Action completed before another past event.
+            <span className="text-orange-400 font-medium">Pluskvamperfekt / Past Perfect:</span> <b>hade</b> + supinum. Action completed before another past event.
             <span className="text-gray-500 ml-2">Jag <b>hade &auml;tit</b> innan hon kom.</span>
           </div>
           <div>
-            <span className="text-pink-400 font-medium">Futurum:</span> Future. <b>ska</b> + infinitiv. Planned or intended action.
+            <span className="text-pink-400 font-medium">Futurum / Future:</span> <b>ska</b> + infinitiv. Planned or intended action.
             <span className="text-gray-500 ml-2">Jag <b>ska &auml;ta</b> middag.</span>
           </div>
           <div>
-            <span className="text-purple-400 font-medium">Supinum:</span> The verb form used in perfekt/pluskvamperfekt. Not used alone.
+            <span className="text-purple-400 font-medium">Supinum / Past Participle:</span> The verb form used in perfekt/pluskvamperfekt. Not used alone.
             <span className="text-gray-500 ml-2">har <b>&auml;tit</b>, hade <b>skrivit</b></span>
           </div>
           <div>
-            <span className="text-red-400 font-medium">Imperativ:</span> Commands / requests.
+            <span className="text-red-400 font-medium">Imperativ / Imperative:</span> Commands / requests.
             <span className="text-gray-500 ml-2"><b>&Auml;t</b> din mat!</span>
           </div>
         </div>
