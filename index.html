@@ -158,7 +158,7 @@ const VERBS = [
 // ALL TENSES
 // ============================================================
 const ALL_TENSES = [
-  { key: "infinitiv",        label: "Infinitiv / Infinitive",              color: "text-blue-400",    getForm: (v) => v[0] !== "-" ? v[0] : null },
+  { key: "infinitiv",        label: "Infinitiv / Infinitive / Stem",       color: "text-blue-400",    getForm: (v) => v[0] !== "-" ? v[0] : null },
   { key: "presens",          label: "Presens / Present",                   color: "text-green-400",   getForm: (v) => v[1] !== "-" ? v[1] : null },
   { key: "preteritum",       label: "Preteritum / Simple Past",            color: "text-yellow-400",  getForm: (v) => v[2] !== "-" ? v[2] : null },
   { key: "perfekt",          label: "Perfekt / Present Perfect",           color: "text-teal-400",    getForm: (v) => v[3] !== "-" ? `har ${v[3]}` : null },
