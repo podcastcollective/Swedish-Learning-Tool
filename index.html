@@ -430,6 +430,81 @@ function shuffle(arr) {
   return a;
 }
 
+// Generate an explanation for a wrong verb answer based on verb group and tense
+function explainVerbError(verb, tenseKey, userAnswer) {
+  const group = VERB_GROUPS.find(g => g.id === verb[6]);
+  if (!group) return null;
+
+  const groupId = verb[6];
+  const infinitiv = verb[0];
+  const tense = ALL_TENSES.find(t => t.key === tenseKey);
+  const correctForm = tense ? tense.getForm(verb) : null;
+  if (!correctForm) return null;
+
+  const lines = [];
+
+  // Identify the group
+  lines.push(`This is a ${group.label} verb (${group.pattern}).`);
+
+  // Tense-specific explanation
+  if (tenseKey === 'presens') {
+    if (groupId === '1') lines.push(`Grupp 1 verbs form presens by adding -ar to the stem: ${infinitiv} \u2192 ${correctForm}.`);
+    else if (groupId === '2a' || groupId === '2b') lines.push(`Grupp 2 verbs form presens with -er (or just -r): ${infinitiv} \u2192 ${correctForm}.`);
+    else if (groupId === '3') lines.push(`Grupp 3 verbs are short and just add -r: ${infinitiv} \u2192 ${correctForm}.`);
+    else lines.push(`Grupp 4 verbs are irregular in presens \u2014 you need to memorize: ${infinitiv} \u2192 ${correctForm}.`);
+  } else if (tenseKey === 'preteritum') {
+    if (groupId === '1') lines.push(`Grupp 1 verbs form preteritum with -ade: ${infinitiv} \u2192 ${correctForm}.`);
+    else if (groupId === '2a') lines.push(`Grupp 2a verbs form preteritum with -de (voiced consonant): ${infinitiv} \u2192 ${correctForm}.`);
+    else if (groupId === '2b') lines.push(`Grupp 2b verbs form preteritum with -te (voiceless consonant): ${infinitiv} \u2192 ${correctForm}.`);
+    else if (groupId === '3') lines.push(`Grupp 3 verbs double the consonant and add -de: ${infinitiv} \u2192 ${correctForm}.`);
+    else lines.push(`Grupp 4 verbs change their stem vowel in preteritum \u2014 must memorize: ${infinitiv} \u2192 ${correctForm}.`);
+  } else if (tenseKey === 'supinum') {
+    if (groupId === '1') lines.push(`Grupp 1 supinum ends in -at: ${infinitiv} \u2192 ${correctForm}.`);
+    else if (groupId === '2a' || groupId === '2b') lines.push(`Grupp 2 supinum ends in -t: ${infinitiv} \u2192 ${correctForm}.`);
+    else if (groupId === '3') lines.push(`Grupp 3 supinum ends in -tt: ${infinitiv} \u2192 ${correctForm}.`);
+    else if (groupId === '4a') lines.push(`Grupp 4a supinum ends in -it: ${infinitiv} \u2192 ${correctForm}.`);
+    else lines.push(`Grupp 4b has irregular supinum \u2014 must memorize: ${infinitiv} \u2192 ${correctForm}.`);
+  } else if (tenseKey === 'imperativ') {
+    if (groupId === '1') lines.push(`Grupp 1 imperativ is the same as the stem (remove -a): ${correctForm}!`);
+    else if (groupId === '2a' || groupId === '2b') lines.push(`Grupp 2 imperativ removes the -a ending: ${infinitiv} \u2192 ${correctForm}!`);
+    else lines.push(`Imperativ: ${correctForm}!`);
+  } else if (tenseKey === 'perfekt') {
+    lines.push(`Perfekt = har + supinum (${verb[3]}): ${correctForm}.`);
+  } else if (tenseKey === 'pluskvamperfekt') {
+    lines.push(`Pluskvamperfekt = hade + supinum (${verb[3]}): ${correctForm}.`);
+  } else if (tenseKey === 'futurum') {
+    lines.push(`Futurum = ska + infinitiv (${verb[0]}): ${correctForm}.`);
+  } else if (tenseKey === 'infinitiv') {
+    lines.push(`The infinitiv is the base/stem form: ${correctForm}.`);
+  }
+
+  // Try to diagnose what the user might have confused
+  if (userAnswer && userAnswer.trim()) {
+    const ua = userAnswer.trim().toLowerCase();
+    // Check if they gave a different tense form
+    const otherTenses = ALL_TENSES.filter(t => t.key !== tenseKey);
+    for (const ot of otherTenses) {
+      const otherForm = ot.getForm(verb);
+      if (otherForm && ua === otherForm.toLowerCase()) {
+        lines.push(`It looks like you gave the ${ot.label} form instead.`);
+        break;
+      }
+    }
+    // Check if they applied the wrong group pattern
+    if (tenseKey === 'preteritum') {
+      if (groupId !== '1' && ua.endsWith('ade')) lines.push(`You used the Grupp 1 ending (-ade), but this verb is ${group.label}.`);
+      if (groupId === '1' && (ua.endsWith('de') && !ua.endsWith('ade'))) lines.push(`You used a Grupp 2 ending (-de), but this is a Grupp 1 verb that uses -ade.`);
+      if (groupId === '1' && ua.endsWith('te')) lines.push(`You used a Grupp 2b ending (-te), but this is a Grupp 1 verb that uses -ade.`);
+    }
+    if (tenseKey === 'supinum') {
+      if (groupId === '1' && !ua.endsWith('at') && (ua.endsWith('t') || ua.endsWith('it'))) lines.push(`Grupp 1 supinum always ends in -at, not -t or -it.`);
+      if ((groupId === '2a' || groupId === '2b') && ua.endsWith('at')) lines.push(`You used a Grupp 1 ending (-at), but Grupp 2 supinum ends in -t.`);
+    }
+  }
+
+  return lines.join(' ');
+}
+
 // ============================================================
 // COMPONENTS
 // ============================================================
@@ -506,7 +581,7 @@ function StudyMode() {
     if (parts[0] === 'verb') {
       const vi = parseInt(parts[1]), ti = parseInt(parts[2]);
       const verb = VERBS[vi], tense = ALL_TENSES[ti];
-      return { type: 'verb', question: `${verb[5]} - ${tense.label}`, answer: tense.getForm(verb), hint: verb[0], tag: tense.label, tagColor: tense.color, speakText: tense.getForm(verb) };
+      return { type: 'verb', question: `${verb[5]} - ${tense.label}`, answer: tense.getForm(verb), hint: verb[0], tag: tense.label, tagColor: tense.color, speakText: tense.getForm(verb), verb, tenseKey: tense.key };
     } else if (parts[0] === 'vocab') {
       const cat = parts[1], wi = parseInt(parts[2]), word = VOCAB[cat][wi];
       return { type: 'vocab', question: word[1], answer: word[0], hint: word[2] === 'en' || word[2] === 'ett' ? `(${word[2]}) - ${word[3]}` : word[3], tag: cat, tagColor: 'text-cyan-400', speakText: word[0] };
@@ -537,7 +612,8 @@ function StudyMode() {
     const correctAns = card.answer.toLowerCase();
     const correct = userAns === correctAns;
     SRS.updateCard(current, correct);
-    setFeedback({ correct, answer: card.answer, speakText: card.speakText });
+    const explanation = (!correct && card.type === 'verb') ? explainVerbError(card.verb, card.tenseKey, userAns) : null;
+    setFeedback({ correct, answer: card.answer, speakText: card.speakText, explanation });
     setSessionStats(s => ({ correct: s.correct + (correct ? 1 : 0), wrong: s.wrong + (correct ? 0 : 1) }));
     setStreak(correct ? streak + 1 : 0);
   };
@@ -591,6 +667,9 @@ function StudyMode() {
                   <p className="text-gray-300">Answer: <span className="font-bold text-white">{feedback.answer}</span></p>
                   <SpeakButton text={feedback.speakText} />
                 </div>
+                {feedback.explanation && (
+                  <p className="mt-3 text-sm text-gray-400 bg-gray-800 rounded-lg px-4 py-3 text-left">{feedback.explanation}</p>
+                )}
               </div>
             )}
             <button onClick={advance} className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium">Next (Enter)</button>
@@ -661,16 +740,20 @@ function VerbDrills() {
             const userAns = (answers[i] || '').trim().toLowerCase();
             const isCorrect = checked && userAns === form.toLowerCase();
             const isWrong = checked && !isCorrect;
+            const explanation = isWrong ? explainVerbError(verb, tense.key, answers[i]) : null;
             return (
-              <div key={tense.key} className="flex items-center gap-2">
-                <span className={`w-36 text-xs sm:text-sm font-medium ${tense.color} flex-shrink-0`}>{tense.label}</span>
-                <input type="text" value={answers[i] || ''} onChange={e => setAnswers({ ...answers, [i]: e.target.value })} disabled={checked}
-                  placeholder={tense.key === 'perfekt' ? 'har + ...' : tense.key === 'pluskvamperfekt' ? 'hade + ...' : tense.key === 'futurum' ? 'ska + ...' : ''}
-                  className={`flex-1 bg-gray-800 border rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 ${isCorrect ? 'border-green-500 text-green-400' : ''} ${isWrong ? 'border-red-500 text-red-400' : 'border-gray-700'} disabled:opacity-70`}
-                  autoComplete="off" autoCorrect="off" spellCheck="false" />
-                {isWrong && <span className="text-sm text-green-400 font-medium whitespace-nowrap">{form}</span>}
-                {isCorrect && <span className="text-green-400 text-sm">&#10003;</span>}
-                {checked && <SpeakButton text={form} size="sm" />}
+              <div key={tense.key}>
+                <div className="flex items-center gap-2">
+                  <span className={`w-36 text-xs sm:text-sm font-medium ${tense.color} flex-shrink-0`}>{tense.label}</span>
+                  <input type="text" value={answers[i] || ''} onChange={e => setAnswers({ ...answers, [i]: e.target.value })} disabled={checked}
+                    placeholder={tense.key === 'perfekt' ? 'har + ...' : tense.key === 'pluskvamperfekt' ? 'hade + ...' : tense.key === 'futurum' ? 'ska + ...' : ''}
+                    className={`flex-1 bg-gray-800 border rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 ${isCorrect ? 'border-green-500 text-green-400' : ''} ${isWrong ? 'border-red-500 text-red-400' : 'border-gray-700'} disabled:opacity-70`}
+                    autoComplete="off" autoCorrect="off" spellCheck="false" />
+                  {isWrong && <span className="text-sm text-green-400 font-medium whitespace-nowrap">{form}</span>}
+                  {isCorrect && <span className="text-green-400 text-sm">&#10003;</span>}
+                  {checked && <SpeakButton text={form} size="sm" />}
+                </div>
+                {explanation && <p className="ml-36 pl-2 mt-1 mb-1 text-xs text-gray-400 bg-gray-800/50 rounded px-3 py-1.5">{explanation}</p>}
               </div>
             );
           })}
