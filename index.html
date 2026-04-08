@@ -506,6 +506,92 @@ function explainVerbError(verb, tenseKey, userAnswer) {
 }
 
 // ============================================================
+// COMMON SWEDISH STOP WORDS (A1 level — filter these out)
+// ============================================================
+const STOP_WORDS = new Set([
+  // Pronouns
+  'jag','du','han','hon','den','det','vi','ni','de','man','sig','mig','dig','oss','er','dem',
+  'min','mitt','mina','din','ditt','dina','sin','sitt','sina','hans','hennes','vår','vårt','våra','er','ert','era','deras',
+  // Articles & demonstratives
+  'en','ett','den','det','de','denna','detta','dessa','alla','allt','varje','någon','något','några','ingen','inget','inga',
+  // Common verbs (base forms)
+  'är','var','har','hade','ska','skulle','kan','kunde','vill','ville','får','fick','gör','gjorde','gå','går','gick',
+  'kom','kommer','ser','såg','sa','säger','tar','tog','ger','gav','vet','visste','bli','blir','blev',
+  'finns','finnas','vara','ha','göra','kunna','vilja','måste','behöver','behöva',
+  // Prepositions
+  'i','på','till','från','med','för','av','om','hos','vid','ur','utan','under','över','efter','före','mellan','genom','mot',
+  // Conjunctions
+  'och','eller','men','att','som','om','när','där','här','så','än','sedan','eftersom','därför','fast','trots',
+  // Adverbs
+  'inte','inte','också','bara','redan','aldrig','alltid','ofta','ibland','mycket','mer','mest','lite','väl','ju','nog',
+  'hem','hit','dit','upp','ner','ut','in','bort','fram','tillbaka','hur','var','vad','vem','vilken','vilket','vilka',
+  // Numbers
+  'en','ett','två','tre','fyra','fem','sex','sju','åtta','nio','tio','hundra','tusen',
+  'första','andra','tredje',
+  // Common adjectives
+  'bra','stor','stort','stora','liten','litet','lilla','små','ny','nytt','nya','gammal','gammalt','gamla',
+  'god','gott','goda','lång','långt','långa','kort','hög','högt','höga',
+  // Other very common
+  'ja','nej','tack','hej','okej','snälla',
+  'dag','dagar','tid','gång','gånger','år','dag',
+  'hem','hus','väg',
+  'nu','då','sen','här','där','där','dit','hit',
+  'nog','väl','ju','ändå','kanske','dock',
+]);
+
+// ============================================================
+// MY WORDS — user-saved vocabulary from Discover
+// ============================================================
+const MyWordsStore = {
+  load() {
+    try { return JSON.parse(localStorage.getItem('swedish_mywords') || '[]'); }
+    catch { return []; }
+  },
+  save(words) { localStorage.setItem('swedish_mywords', JSON.stringify(words)); },
+  add(swedish, english, context) {
+    const words = this.load();
+    // Don't add duplicates
+    if (words.some(w => w.swedish.toLowerCase() === swedish.toLowerCase())) return false;
+    words.push({ swedish, english, context, addedAt: Date.now() });
+    this.save(words);
+    return true;
+  },
+  remove(swedish) {
+    const words = this.load().filter(w => w.swedish.toLowerCase() !== swedish.toLowerCase());
+    this.save(words);
+  },
+  getAll() { return this.load(); },
+};
+
+// Check if a word is already known (in built-in vocab/verbs or mastered in SRS)
+function isWordKnown(word) {
+  const w = word.toLowerCase();
+  if (STOP_WORDS.has(w)) return true;
+  // Check built-in vocab
+  for (const cat of Object.values(VOCAB)) {
+    if (cat.some(v => v[0].toLowerCase() === w)) return true;
+  }
+  // Check verb forms
+  for (const verb of VERBS) {
+    for (let i = 0; i < 5; i++) {
+      if (verb[i].toLowerCase() === w) return true;
+    }
+  }
+  // Check phrases (individual words in phrases are not "known")
+  return false;
+}
+
+// Extract candidate words from Swedish text
+function extractWords(text) {
+  return text
+    .replace(/[.,!?;:"""''()\[\]{}\/\\–—\-\d]/g, ' ')
+    .split(/\s+/)
+    .map(w => w.trim().toLowerCase())
+    .filter(w => w.length > 1)
+    .filter(w => !STOP_WORDS.has(w));
+}
+
+// ============================================================
 // COMPONENTS
 // ============================================================
 const { useState, useEffect, useCallback, useMemo, useRef } = React;
@@ -519,6 +605,8 @@ function Nav({ view, setView, stats }) {
     ["phrases", "Phrases"],
     ["prepositions", "Prepositions"],
     ["listen", "Listen"],
+    ["discover", "Discover"],
+    ["mywords", "My Words"],
     ["reference", "Reference"],
     ["stats", "Progress"],
   ];
@@ -553,6 +641,8 @@ function StudyMode() {
     PHRASES.forEach((p, i) => ids.push(`phrase:${i}`));
     SENTENCES.forEach((s, i) => ids.push(`sentence:${i}`));
     PREPOSITIONS.forEach((p, i) => ids.push(`prep:${i}`));
+    // Include user's saved words
+    MyWordsStore.getAll().forEach(w => ids.push(`myword:${w.swedish.toLowerCase()}`));
     return ids;
   }, []);
 
@@ -595,6 +685,11 @@ function StudyMode() {
     } else if (parts[0] === 'prep') {
       const pi = parseInt(parts[1]), p = PREPOSITIONS[pi];
       return { type: 'prep', question: p[0].replace('___', '___'), answer: p[1], hint: p[3], tag: 'Preposition', tagColor: 'text-rose-400', speakText: p[0].replace('___', p[1]) };
+    } else if (parts[0] === 'myword') {
+      const sw = parts.slice(1).join(':'); // rejoin in case word had colons
+      const w = MyWordsStore.getAll().find(mw => mw.swedish.toLowerCase() === sw);
+      if (!w) return null;
+      return { type: 'myword', question: w.english, answer: w.swedish, hint: w.context ? `from: "${w.context.slice(0, 60)}..."` : '', tag: 'My Word', tagColor: 'text-violet-400', speakText: w.swedish };
     }
     return null;
   };
@@ -1180,6 +1275,281 @@ function VocabPractice() {
   );
 }
 
+// ---- Discover (paste text, extract unknown words) ----
+function Discover({ onWordsAdded }) {
+  const [text, setText] = useState('');
+  const [candidates, setCandidates] = useState([]); // [{word, translation, keep}]
+  const [analyzed, setAnalyzed] = useState(false);
+  const [savedCount, setSavedCount] = useState(0);
+
+  const analyze = () => {
+    const words = extractWords(text);
+    // Deduplicate
+    const unique = [...new Set(words)];
+    // Filter out known words and already-saved words
+    const myWords = MyWordsStore.getAll();
+    const mySet = new Set(myWords.map(w => w.swedish.toLowerCase()));
+    const unknown = unique.filter(w => !isWordKnown(w) && !mySet.has(w));
+    setCandidates(unknown.map(w => ({ word: w, translation: '', keep: true })));
+    setAnalyzed(true);
+    setSavedCount(0);
+  };
+
+  const updateCandidate = (idx, field, value) => {
+    setCandidates(prev => prev.map((c, i) => i === idx ? { ...c, [field]: value } : c));
+  };
+
+  const saveWords = () => {
+    let count = 0;
+    candidates.forEach(c => {
+      if (c.keep && c.translation.trim()) {
+        if (MyWordsStore.add(c.word, c.translation.trim(), text.slice(0, 200))) count++;
+      }
+    });
+    setSavedCount(count);
+    if (onWordsAdded) onWordsAdded();
+    // Remove saved words from candidates
+    setCandidates(prev => prev.filter(c => !(c.keep && c.translation.trim())));
+  };
+
+  const reset = () => {
+    setText('');
+    setCandidates([]);
+    setAnalyzed(false);
+    setSavedCount(0);
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-8 fade-in">
+      <h2 className="text-xl font-bold mb-2">Discover New Words</h2>
+      <p className="text-sm text-gray-500 mb-6">Paste Swedish text from a translation, photo, article, or message. We'll find words you probably don't know yet.</p>
+
+      {!analyzed ? (
+        <div>
+          <textarea value={text} onChange={e => setText(e.target.value)}
+            placeholder="Paste Swedish text here...&#10;&#10;e.g. from a menu, sign, article, subtitle, or conversation"
+            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-blue-500 resize-none"
+            rows={6} />
+          <button onClick={analyze} disabled={!text.trim()}
+            className="mt-4 w-full py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-sm font-medium transition-colors">
+            Find Unknown Words
+          </button>
+        </div>
+      ) : (
+        <div>
+          {savedCount > 0 && (
+            <div className="bg-green-900/30 border border-green-800 rounded-lg px-4 py-3 mb-4 text-sm text-green-400 fade-in">
+              Added {savedCount} word{savedCount !== 1 ? 's' : ''} to My Words! They'll appear in your Study sessions.
+            </div>
+          )}
+
+          {candidates.length === 0 ? (
+            <div className="bg-gray-900 rounded-xl p-8 border border-gray-800 text-center">
+              <p className="text-gray-400 mb-2">{savedCount > 0 ? 'All words saved!' : 'No unknown words found in this text.'}</p>
+              <p className="text-sm text-gray-600 mb-4">{savedCount > 0 ? 'Head to My Words or Study to practice them.' : 'Try a longer or more advanced text.'}</p>
+              <button onClick={reset} className="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium">Try Another Text</button>
+            </div>
+          ) : (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm text-gray-400">Found <span className="text-white font-medium">{candidates.length}</span> word{candidates.length !== 1 ? 's' : ''} to learn. Add the English translation for each:</p>
+                <button onClick={reset} className="text-xs text-gray-500 hover:text-gray-300">Start over</button>
+              </div>
+
+              <div className="space-y-2 mb-6">
+                {candidates.map((c, i) => (
+                  <div key={i} className={`flex items-center gap-3 bg-gray-900 rounded-lg px-4 py-3 border border-gray-800 ${!c.keep ? 'opacity-40' : ''}`}>
+                    <button onClick={() => updateCandidate(i, 'keep', !c.keep)}
+                      className={`w-5 h-5 rounded border flex-shrink-0 flex items-center justify-center text-xs ${c.keep ? 'bg-blue-600 border-blue-500 text-white' : 'border-gray-600'}`}>
+                      {c.keep ? '\u2713' : ''}
+                    </button>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="font-medium text-blue-400">{c.word}</span>
+                      <SpeakButton text={c.word} size="sm" />
+                    </div>
+                    <span className="text-gray-600">=</span>
+                    <input type="text" value={c.translation}
+                      onChange={e => updateCandidate(i, 'translation', e.target.value)}
+                      placeholder="English translation"
+                      className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+                      autoComplete="off" autoCorrect="off" />
+                    <button onClick={() => setCandidates(prev => prev.filter((_, j) => j !== i))}
+                      className="text-gray-600 hover:text-red-400 text-xs flex-shrink-0">&times;</button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
+                <button onClick={saveWords}
+                  disabled={!candidates.some(c => c.keep && c.translation.trim())}
+                  className="flex-1 py-2.5 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-sm font-medium transition-colors">
+                  Save to My Words
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- My Words (user-saved vocabulary) ----
+function MyWordsPractice() {
+  const [words, setWords] = useState(MyWordsStore.getAll());
+  const [mode, setMode] = useState('list'); // list | practice
+  const [cardIdx, setCardIdx] = useState(0);
+  const [input, setInput] = useState('');
+  const [feedback, setFeedback] = useState(null);
+  const [shuffled, setShuffled] = useState([]);
+  const [sessionStats, setSessionStats] = useState({ correct: 0, wrong: 0 });
+  const inputRef = useRef(null);
+
+  const refresh = () => setWords(MyWordsStore.getAll());
+
+  const startPractice = () => {
+    const w = MyWordsStore.getAll();
+    if (w.length === 0) return;
+    setShuffled(shuffle(w));
+    setCardIdx(0);
+    setInput('');
+    setFeedback(null);
+    setSessionStats({ correct: 0, wrong: 0 });
+    setMode('practice');
+  };
+
+  useEffect(() => { if (mode === 'practice' && !feedback && inputRef.current) inputRef.current.focus(); }, [cardIdx, feedback, mode]);
+
+  const removeWord = (swedish) => {
+    MyWordsStore.remove(swedish);
+    // Also remove from SRS
+    const data = SRS.load();
+    delete data[`myword:${swedish.toLowerCase()}`];
+    SRS.save(data);
+    refresh();
+  };
+
+  // Practice mode
+  const word = shuffled[cardIdx];
+
+  const check = () => {
+    if (!word) return;
+    const correct = input.trim().toLowerCase() === word.swedish.toLowerCase();
+    SRS.updateCard(`myword:${word.swedish.toLowerCase()}`, correct);
+    setFeedback({ correct, answer: word.swedish });
+    setSessionStats(s => ({ correct: s.correct + (correct ? 1 : 0), wrong: s.wrong + (correct ? 0 : 1) }));
+  };
+
+  const next = () => {
+    setFeedback(null); setInput('');
+    if (cardIdx < shuffled.length - 1) setCardIdx(cardIdx + 1);
+    else { setShuffled(shuffle(MyWordsStore.getAll())); setCardIdx(0); }
+  };
+
+  const handleKey = (e) => { if (e.key === 'Enter') { if (feedback) next(); else if (input.trim()) check(); } };
+
+  if (mode === 'practice' && word) {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-8 fade-in">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold">My Words - Practice</h2>
+          <button onClick={() => setMode('list')} className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs">Back to list</button>
+        </div>
+
+        <div className={`bg-gray-900 rounded-xl p-8 border border-gray-800 ${feedback?.correct === true ? 'correct-flash' : ''} ${feedback?.correct === false ? 'wrong-flash' : ''}`}>
+          <span className="text-xs font-medium px-2 py-0.5 rounded text-violet-400 bg-gray-800">My Word</span>
+          <p className="text-2xl font-semibold text-center mt-4 mb-2">{word.english}</p>
+          {word.context && <p className="text-xs text-gray-600 text-center mb-6 truncate max-w-md mx-auto">from: "{word.context.slice(0, 80)}..."</p>}
+
+          <input ref={inputRef} type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey}
+            disabled={feedback !== null} placeholder="Type the Swedish..."
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-center text-lg focus:outline-none focus:border-blue-500 disabled:opacity-50"
+            autoComplete="off" autoCorrect="off" spellCheck="false" />
+
+          {feedback && (
+            <div className="mt-6 text-center fade-in">
+              {feedback.correct ? (
+                <div className="flex items-center justify-center gap-2">
+                  <p className="text-green-400 text-lg font-semibold">Correct!</p>
+                  <SpeakButton text={feedback.answer} />
+                </div>
+              ) : (
+                <div>
+                  <p className="text-red-400 text-lg font-semibold mb-1">Not quite</p>
+                  <div className="flex items-center justify-center gap-2">
+                    <p className="text-gray-300">Answer: <span className="font-bold text-white">{feedback.answer}</span></p>
+                    <SpeakButton text={feedback.answer} />
+                  </div>
+                </div>
+              )}
+              <button onClick={next} className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium">Next (Enter)</button>
+            </div>
+          )}
+          {!feedback && input.trim() && (
+            <button onClick={check} className="mt-4 w-full py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium">Check (Enter)</button>
+          )}
+        </div>
+
+        <div className="flex justify-center gap-8 mt-6 text-sm text-gray-500">
+          <span className="text-green-400">{sessionStats.correct} correct</span>
+          <span className="text-red-400">{sessionStats.wrong} wrong</span>
+          <span>{cardIdx + 1}/{shuffled.length}</span>
+        </div>
+      </div>
+    );
+  }
+
+  // List mode
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-8 fade-in">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-bold">My Words</h2>
+          <p className="text-sm text-gray-500">{words.length} word{words.length !== 1 ? 's' : ''} saved</p>
+        </div>
+        {words.length > 0 && (
+          <button onClick={startPractice}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium">
+            Practice
+          </button>
+        )}
+      </div>
+
+      {words.length === 0 ? (
+        <div className="bg-gray-900 rounded-xl p-8 border border-gray-800 text-center">
+          <p className="text-gray-400 mb-2">No words saved yet.</p>
+          <p className="text-sm text-gray-600">Use the <span className="text-blue-400">Discover</span> tab to paste Swedish text and find new words to learn.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {words.map((w, i) => {
+            const srsData = SRS.load();
+            const card = srsData[`myword:${w.swedish.toLowerCase()}`];
+            const box = card ? card.box : -1;
+            return (
+              <div key={i} className="flex items-center gap-3 bg-gray-900 rounded-lg px-4 py-3 border border-gray-800">
+                <SpeakButton text={w.swedish} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <span className="font-medium text-violet-400">{w.swedish}</span>
+                    <span className="text-gray-400 text-sm">= {w.english}</span>
+                  </div>
+                  {w.context && <p className="text-xs text-gray-600 truncate mt-0.5">"{w.context.slice(0, 60)}..."</p>}
+                </div>
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                  box === -1 ? 'bg-gray-700' : box === 0 ? 'bg-red-500' : box < 3 ? 'bg-yellow-500' : box < 5 ? 'bg-blue-500' : 'bg-green-500'
+                }`} title={box === -1 ? 'Not studied' : `SRS box ${box}`} />
+                <button onClick={() => removeWord(w.swedish)}
+                  className="text-gray-600 hover:text-red-400 text-sm flex-shrink-0">&times;</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---- Reference Table ----
 function Reference() {
   const [search, setSearch] = useState('');
@@ -1297,7 +1667,7 @@ function Progress() {
     let count = 0;
     VERBS.forEach(v => { ALL_TENSES.forEach(t => { if (t.getForm(v) !== null) count++; }); });
     Object.values(VOCAB).forEach(w => count += w.length);
-    count += PHRASES.length + SENTENCES.length + PREPOSITIONS.length;
+    count += PHRASES.length + SENTENCES.length + PREPOSITIONS.length + MyWordsStore.getAll().length;
     return count;
   }, []);
   const pct = Math.round((stats.mastered / Math.max(1, totalCards)) * 100);
@@ -1341,6 +1711,7 @@ function Progress() {
             ['Sentences', `${SENTENCES.length} sentences`, 'text-amber-400'],
             ['Phrases', `${PHRASES.length} phrases`, 'text-emerald-400'],
             ['Prepositions', `${PREPOSITIONS.length} drills`, 'text-rose-400'],
+            ['My Words', `${MyWordsStore.getAll().length} words`, 'text-violet-400'],
           ].map(([label, count, color]) => (
             <div key={label} className="flex justify-between">
               <span className={color}>{label}</span>
@@ -1376,6 +1747,8 @@ function App() {
       {view === 'phrases' && <PhrasePractice />}
       {view === 'prepositions' && <PrepositionDrill />}
       {view === 'listen' && <ListenMode />}
+      {view === 'discover' && <Discover onWordsAdded={() => setStats(SRS.getStats())} />}
+      {view === 'mywords' && <MyWordsPractice />}
       {view === 'reference' && <Reference />}
       {view === 'stats' && <Progress />}
     </div>
