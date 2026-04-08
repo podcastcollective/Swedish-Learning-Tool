@@ -819,11 +819,53 @@ const DICTIONARY = (() => {
 })();
 
 // Look up a word in the dictionary (returns english or null)
+// Tries: exact match → strip trailing junk from OCR → closest fuzzy match
 function lookupWord(swedish) {
-  return DICTIONARY[swedish.toLowerCase()] || null;
+  const w = swedish.toLowerCase();
+  // Exact match
+  if (DICTIONARY[w]) return DICTIONARY[w];
+  // Strip common OCR trailing noise (extra chars from bad recognition)
+  const trimmed = w.replace(/[^a-zåäöé]+$/, '');
+  if (trimmed.length > 1 && DICTIONARY[trimmed]) return DICTIONARY[trimmed];
+  // Try removing doubled last char (OCR artifact)
+  if (w.length > 2 && w[w.length - 1] === w[w.length - 2]) {
+    const deduped = w.slice(0, -1);
+    if (DICTIONARY[deduped]) return DICTIONARY[deduped];
+  }
+  return null;
 }
 
-// Extract learnable words from Swedish text — only returns words in the dictionary
+// Fuzzy lookup: find closest dictionary word within edit distance 1
+function fuzzyLookup(swedish) {
+  const w = swedish.toLowerCase();
+  if (w.length < 3) return null; // too short for fuzzy
+  // Check dictionary keys for edit distance 1
+  for (const key in DICTIONARY) {
+    if (Math.abs(key.length - w.length) > 1) continue;
+    if (editDistance1(w, key)) return { word: key, english: DICTIONARY[key] };
+  }
+  return null;
+}
+
+function editDistance1(a, b) {
+  if (a === b) return false;
+  const lenA = a.length, lenB = b.length;
+  if (Math.abs(lenA - lenB) > 1) return false;
+  let diffs = 0, i = 0, j = 0;
+  while (i < lenA && j < lenB) {
+    if (a[i] !== b[j]) {
+      diffs++;
+      if (diffs > 1) return false;
+      if (lenA > lenB) i++;
+      else if (lenB > lenA) j++;
+      else { i++; j++; }
+    } else { i++; j++; }
+  }
+  return diffs + (lenA - i) + (lenB - j) <= 1;
+}
+
+// Extract learnable words from Swedish text — tries exact then fuzzy dictionary match
+// Returns { words: [{word, english}], stats: {total, matched, known, new} }
 function extractLearnableWords(text) {
   const words = text
     .replace(/[.,!?;:"""''()\[\]{}\/\\–—\-\d]/g, ' ')
@@ -832,26 +874,49 @@ function extractLearnableWords(text) {
     .filter(w => w.length > 1)
     .filter(w => !STOP_WORDS.has(w));
 
-  // Deduplicate
   const unique = [...new Set(words)];
+  const totalWords = unique.length;
 
-  // Only keep words that are in the dictionary
   const myWords = MyWordsStore.getAll();
   const mySet = new Set(myWords.map(w => w.swedish.toLowerCase()));
-
-  // Check SRS mastery — skip words already mastered (box >= 5)
   const srsData = SRS.load();
 
-  return unique
-    .map(w => ({ word: w, english: lookupWord(w) }))
-    .filter(entry => entry.english !== null) // must be in dictionary
-    .filter(entry => !mySet.has(entry.word)) // not already in My Words
-    .filter(entry => {
-      // Check if already mastered in any SRS card
-      const srsKey = `myword:${entry.word}`;
-      const card = srsData[srsKey];
-      return !card || card.box < 5; // show if not mastered
-    });
+  let matched = 0;
+  let known = 0;
+  const results = [];
+
+  for (const w of unique) {
+    // Try exact lookup first
+    let english = lookupWord(w);
+    let displayWord = w;
+
+    // Try fuzzy match if exact fails
+    if (!english) {
+      const fuzzy = fuzzyLookup(w);
+      if (fuzzy) {
+        english = fuzzy.english;
+        displayWord = fuzzy.word; // use the correct dictionary spelling
+      }
+    }
+
+    if (!english) continue;
+    matched++;
+
+    // Skip already known words
+    if (mySet.has(displayWord)) { known++; continue; }
+
+    // Skip mastered SRS cards
+    const srsKey = `myword:${displayWord}`;
+    const card = srsData[srsKey];
+    if (card && card.box >= 5) { known++; continue; }
+
+    results.push({ word: displayWord, english });
+  }
+
+  return {
+    words: results,
+    stats: { total: totalWords, matched, known, new: results.length }
+  };
 }
 
 // ============================================================
@@ -1547,6 +1612,7 @@ function Discover({ onWordsAdded }) {
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [stats, setStats] = useState(null); // {total, matched, known, new}
   const fileInputRef = useRef(null);
 
   const handleImageUpload = async (e) => {
@@ -1568,13 +1634,19 @@ function Discover({ onWordsAdded }) {
       const swedishCharPattern = /^[a-zA-ZåäöÅÄÖéèüáàâ\-]+$/;
       const words = result.data.words || [];
       const validWords = words
-        .filter(w => w.confidence > 60) // decent OCR confidence
+        .filter(w => w.confidence > 40) // lower threshold — fuzzy matching handles OCR errors
         .map(w => w.text.trim())
         .filter(w => w.length > 1)
         .filter(w => swedishCharPattern.test(w)); // only Swedish alphabet chars
       const extracted = validWords.join(' ');
       if (extracted) {
-        setText(prev => prev ? prev + '\n' + extracted : extracted);
+        setText(extracted);
+        // Auto-analyze immediately
+        const { words: learnable, stats: s } = extractLearnableWords(extracted);
+        setCandidates(learnable.map(r => ({ word: r.word, translation: r.english, keep: true })));
+        setStats(s);
+        setAnalyzed(true);
+        setSavedCount(0);
       } else {
         setOcrError('No Swedish words detected in the image. Try a clearer photo with Swedish text.');
       }
@@ -1587,8 +1659,9 @@ function Discover({ onWordsAdded }) {
   };
 
   const analyze = () => {
-    const results = extractLearnableWords(text);
-    setCandidates(results.map(r => ({ word: r.word, translation: r.english, keep: true })));
+    const { words: learnable, stats: s } = extractLearnableWords(text);
+    setCandidates(learnable.map(r => ({ word: r.word, translation: r.english, keep: true })));
+    setStats(s);
     setAnalyzed(true);
     setSavedCount(0);
   };
@@ -1616,6 +1689,7 @@ function Discover({ onWordsAdded }) {
     setSavedCount(0);
     setImagePreview(null);
     setOcrError(null);
+    setStats(null);
   };
 
   return (
@@ -1677,10 +1751,25 @@ function Discover({ onWordsAdded }) {
             </div>
           )}
 
+          {stats && (
+            <div className="bg-gray-900/50 border border-gray-800 rounded-lg px-4 py-3 mb-4 text-xs text-gray-500 flex gap-4 flex-wrap">
+              <span>Scanned: <span className="text-gray-300">{stats.total}</span> words</span>
+              <span>In dictionary: <span className="text-gray-300">{stats.matched}</span></span>
+              <span>Already known: <span className="text-gray-300">{stats.known}</span></span>
+              <span>New to learn: <span className="text-blue-400 font-medium">{stats.new}</span></span>
+            </div>
+          )}
+
+          {imagePreview && (
+            <div className="mb-4 rounded-lg overflow-hidden border border-gray-800">
+              <img src={imagePreview} alt="Scanned" className="w-full max-h-32 object-contain bg-gray-900" />
+            </div>
+          )}
+
           {candidates.length === 0 ? (
             <div className="bg-gray-900 rounded-xl p-8 border border-gray-800 text-center">
               <p className="text-gray-400 mb-2">{savedCount > 0 ? 'All words saved!' : 'No unknown words found in this text.'}</p>
-              <p className="text-sm text-gray-600 mb-4">{savedCount > 0 ? 'Head to My Words or Study to practice them.' : 'Try a longer or more advanced text.'}</p>
+              <p className="text-sm text-gray-600 mb-4">{savedCount > 0 ? 'Head to My Words or Study to practice them.' : stats && stats.total > 0 ? `Found ${stats.total} words but none matched the dictionary. Try text with common Swedish vocabulary.` : 'Try a longer or more advanced text.'}</p>
               <button onClick={reset} className="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium">Try Another Text</button>
             </div>
           ) : (
