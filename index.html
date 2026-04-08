@@ -26,6 +26,7 @@
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen">
 <div id="root"></div>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -1281,12 +1282,43 @@ function Discover({ onWordsAdded }) {
   const [candidates, setCandidates] = useState([]); // [{word, translation, keep}]
   const [analyzed, setAnalyzed] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrError, setOcrError] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Show preview
+    const reader = new FileReader();
+    reader.onload = (ev) => setImagePreview(ev.target.result);
+    reader.readAsDataURL(file);
+
+    setOcrLoading(true);
+    setOcrError(null);
+    try {
+      const result = await Tesseract.recognize(file, 'swe', {
+        logger: () => {},
+      });
+      const extracted = result.data.text.trim();
+      if (extracted) {
+        setText(prev => prev ? prev + '\n' + extracted : extracted);
+      } else {
+        setOcrError('No text detected in the image. Try a clearer photo.');
+      }
+    } catch (err) {
+      setOcrError('Failed to read image. Try again or paste text manually.');
+    }
+    setOcrLoading(false);
+    // Reset file input so same file can be selected again
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   const analyze = () => {
     const words = extractWords(text);
-    // Deduplicate
     const unique = [...new Set(words)];
-    // Filter out known words and already-saved words
     const myWords = MyWordsStore.getAll();
     const mySet = new Set(myWords.map(w => w.swedish.toLowerCase()));
     const unknown = unique.filter(w => !isWordKnown(w) && !mySet.has(w));
@@ -1308,7 +1340,6 @@ function Discover({ onWordsAdded }) {
     });
     setSavedCount(count);
     if (onWordsAdded) onWordsAdded();
-    // Remove saved words from candidates
     setCandidates(prev => prev.filter(c => !(c.keep && c.translation.trim())));
   };
 
@@ -1317,15 +1348,52 @@ function Discover({ onWordsAdded }) {
     setCandidates([]);
     setAnalyzed(false);
     setSavedCount(0);
+    setImagePreview(null);
+    setOcrError(null);
   };
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 fade-in">
       <h2 className="text-xl font-bold mb-2">Discover New Words</h2>
-      <p className="text-sm text-gray-500 mb-6">Paste Swedish text from a translation, photo, article, or message. We'll find words you probably don't know yet.</p>
+      <p className="text-sm text-gray-500 mb-6">Take a photo or paste Swedish text from anywhere. We'll find words you probably don't know yet.</p>
 
       {!analyzed ? (
         <div>
+          {/* Camera / Photo upload */}
+          <div className="flex gap-3 mb-4">
+            <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleImageUpload}
+              className="hidden" id="camera-input" />
+            <button onClick={() => fileInputRef.current?.click()} disabled={ocrLoading}
+              className="flex-1 py-3 bg-gray-900 hover:bg-gray-800 border border-gray-700 hover:border-blue-500 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+              <span className="text-lg">&#128247;</span>
+              {ocrLoading ? 'Reading image...' : 'Take Photo / Upload Image'}
+            </button>
+          </div>
+
+          {ocrLoading && (
+            <div className="bg-blue-900/20 border border-blue-800 rounded-lg px-4 py-3 mb-4 text-sm text-blue-400 flex items-center gap-2">
+              <span className="animate-spin">&#9881;</span> Extracting Swedish text from image...
+            </div>
+          )}
+
+          {ocrError && (
+            <div className="bg-red-900/20 border border-red-800 rounded-lg px-4 py-3 mb-4 text-sm text-red-400">
+              {ocrError}
+            </div>
+          )}
+
+          {imagePreview && (
+            <div className="mb-4 rounded-lg overflow-hidden border border-gray-800">
+              <img src={imagePreview} alt="Uploaded" className="w-full max-h-48 object-contain bg-gray-900" />
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex-1 h-px bg-gray-800" />
+            <span className="text-xs text-gray-600">or paste text</span>
+            <div className="flex-1 h-px bg-gray-800" />
+          </div>
+
           <textarea value={text} onChange={e => setText(e.target.value)}
             placeholder="Paste Swedish text here...&#10;&#10;e.g. from a menu, sign, article, subtitle, or conversation"
             className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-blue-500 resize-none"
