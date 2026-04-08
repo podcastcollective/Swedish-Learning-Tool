@@ -1302,11 +1302,19 @@ function Discover({ onWordsAdded }) {
       const result = await Tesseract.recognize(file, 'swe', {
         logger: () => {},
       });
-      const extracted = result.data.text.trim();
+      // Filter to only keep words that look like valid Swedish
+      const swedishCharPattern = /^[a-zA-ZåäöÅÄÖéèüáàâ\-]+$/;
+      const words = result.data.words || [];
+      const validWords = words
+        .filter(w => w.confidence > 60) // decent OCR confidence
+        .map(w => w.text.trim())
+        .filter(w => w.length > 1)
+        .filter(w => swedishCharPattern.test(w)); // only Swedish alphabet chars
+      const extracted = validWords.join(' ');
       if (extracted) {
         setText(prev => prev ? prev + '\n' + extracted : extracted);
       } else {
-        setOcrError('No text detected in the image. Try a clearer photo.');
+        setOcrError('No Swedish words detected in the image. Try a clearer photo with Swedish text.');
       }
     } catch (err) {
       setOcrError('Failed to read image. Try again or paste text manually.');
