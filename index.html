@@ -564,32 +564,294 @@ const MyWordsStore = {
   getAll() { return this.load(); },
 };
 
-// Check if a word is already known (in built-in vocab/verbs or mastered in SRS)
-function isWordKnown(word) {
-  const w = word.toLowerCase();
-  if (STOP_WORDS.has(w)) return true;
-  // Check built-in vocab
-  for (const cat of Object.values(VOCAB)) {
-    if (cat.some(v => v[0].toLowerCase() === w)) return true;
-  }
-  // Check verb forms
-  for (const verb of VERBS) {
+// ============================================================
+// SWEDISH-ENGLISH DICTIONARY — learnable words with translations
+// Only words in this dictionary will appear in Discover results.
+// This filters out place names, fragments, and non-learnable words.
+// ============================================================
+const DICTIONARY = (() => {
+  const d = {};
+  const add = (entries) => entries.forEach(([sv, en]) => { d[sv.toLowerCase()] = en; });
+
+  // ---- Build from existing verb data (all conjugated forms) ----
+  VERBS.forEach(v => {
+    const en = v[5];
     for (let i = 0; i < 5; i++) {
-      if (verb[i].toLowerCase() === w) return true;
+      if (v[i] !== '-') d[v[i].toLowerCase()] = en;
     }
-  }
-  // Check phrases (individual words in phrases are not "known")
-  return false;
+  });
+
+  // ---- Build from existing vocab data ----
+  Object.values(VOCAB).forEach(cat => cat.forEach(w => { d[w[0].toLowerCase()] = w[1]; }));
+
+  // ---- Nouns — common B1 words with definite/plural forms ----
+  add([
+    // People & relationships
+    ["människa","person/human"],["människor","people/humans"],["kvinna","woman"],["kvinnan","the woman"],["kvinnor","women"],
+    ["flicka","girl"],["flickan","the girl"],["pojke","boy"],["pojken","the boy"],["barn","child/children"],["barnet","the child"],["barnen","the children"],
+    ["familj","family"],["familjen","the family"],["förälder","parent"],["föräldrarna","the parents"],["vän","friend"],["vännen","the friend"],["vänner","friends"],
+    ["granne","neighbour"],["grannen","the neighbour"],["kollega","colleague"],["partner","partner"],["fru","wife"],["man","man/husband"],["mannen","the man"],
+    // Home & objects
+    ["lägenhet","apartment"],["lägenheten","the apartment"],["rum","room"],["rummet","the room"],["kök","kitchen"],["köket","the kitchen"],
+    ["badrum","bathroom"],["sovrum","bedroom"],["trädgård","garden"],["trädgården","the garden"],["dörr","door"],["dörren","the door"],
+    ["fönster","window"],["fönstret","the window"],["golv","floor"],["tak","roof/ceiling"],["vägg","wall"],["väggen","the wall"],
+    ["möbel","furniture"],["möbler","furniture (pl)"],["stol","chair"],["stolen","the chair"],["bord","table"],["bordet","the table"],
+    ["säng","bed"],["sängen","the bed"],["lampa","lamp"],["lampan","the lamp"],["spegel","mirror"],["nyckel","key"],["nyckeln","the key"],
+    // Food & drink
+    ["mat","food"],["maten","the food"],["måltid","meal"],["frukost","breakfast"],["lunch","lunch"],["middag","dinner"],
+    ["bröd","bread"],["brödet","the bread"],["smör","butter"],["ost","cheese"],["osten","the cheese"],["mjölk","milk"],
+    ["vatten","water"],["vattnet","the water"],["kaffe","coffee"],["kaffet","the coffee"],["juice","juice"],
+    ["kött","meat"],["köttet","the meat"],["fisk","fish"],["fisken","the fish"],["kyckling","chicken"],["kycklingen","the chicken"],
+    ["grönsak","vegetable"],["grönsaker","vegetables"],["frukt","fruit"],["frukten","the fruit"],["äpple","apple"],["äpplet","the apple"],
+    ["potatis","potato"],["potatisen","the potato"],["ris","rice"],["pasta","pasta"],["soppa","soup"],["soppan","the soup"],
+    ["tallrik","plate"],["tallriken","the plate"],["glas","glass"],["glaset","the glass"],["kopp","cup"],["koppen","the cup"],
+    ["kniv","knife"],["kniven","the knife"],["gaffel","fork"],["gaffeln","the fork"],["sked","spoon"],["skeden","the spoon"],
+    // Clothing
+    ["kläder","clothes"],["jacka","jacket"],["jackan","the jacket"],["byxor","trousers"],["skjorta","shirt"],["skjortan","the shirt"],
+    ["klänning","dress"],["klänningen","the dress"],["sko","shoe"],["skor","shoes"],["mössa","hat/beanie"],["handskar","gloves"],
+    ["väska","bag"],["väskan","the bag"],["ficka","pocket"],["fickan","the pocket"],
+    // Transport & city
+    ["bil","car"],["bilen","the car"],["bilar","cars"],["buss","bus"],["bussen","the bus"],["tåg","train"],["tåget","the train"],
+    ["flyg","flight/plane"],["flygplan","airplane"],["cykel","bicycle"],["cykeln","the bicycle"],["väg","road/way"],["vägen","the road"],
+    ["gata","street"],["gatan","the street"],["bro","bridge"],["bron","the bridge"],["station","station"],["stationen","the station"],
+    ["hållplats","stop (bus)"],["hållplatsen","the stop"],["stad","city"],["staden","the city"],["städer","cities"],
+    ["butik","shop"],["butiken","the shop"],["affär","shop/business"],["affären","the shop"],["marknad","market"],["marknaden","the market"],
+    ["restaurang","restaurant"],["restaurangen","the restaurant"],["hotell","hotel"],["hotellet","the hotel"],
+    ["sjukhus","hospital"],["sjukhuset","the hospital"],["skola","school"],["skolan","the school"],["kyrka","church"],["kyrkan","the church"],
+    ["bibliotek","library"],["biblioteket","the library"],["museum","museum"],["museet","the museum"],["park","park"],["parken","the park"],
+    // Nature
+    ["skog","forest"],["skogen","the forest"],["sjö","lake"],["sjön","the lake"],["hav","sea/ocean"],["havet","the sea"],
+    ["strand","beach"],["stranden","the beach"],["berg","mountain"],["berget","the mountain"],["ö","island"],["ön","the island"],
+    ["träd","tree"],["trädet","the tree"],["blomma","flower"],["blomman","the flower"],["blommor","flowers"],
+    ["djur","animal"],["djuret","the animal"],["hund","dog"],["hunden","the dog"],["katt","cat"],["katten","the cat"],
+    ["fågel","bird"],["fågeln","the bird"],["häst","horse"],["hästen","the horse"],
+    ["himmel","sky"],["himlen","the sky"],["sol","sun"],["solen","the sun"],["måne","moon"],["månen","the moon"],
+    ["stjärna","star"],["stjärnan","the star"],["moln","cloud"],["molnet","the cloud"],["regn","rain"],["regnet","the rain"],
+    ["snö","snow"],["snön","the snow"],["vind","wind"],["vinden","the wind"],["väder","weather"],["vädret","the weather"],
+    // Time
+    ["morgon","morning"],["morgonen","the morning"],["förmiddag","morning (late)"],["eftermiddag","afternoon"],["kväll","evening"],["kvällen","the evening"],
+    ["natt","night"],["natten","the night"],["vecka","week"],["veckan","the week"],["veckor","weeks"],["månad","month"],["månaden","the month"],
+    ["vinter","winter"],["vintern","the winter"],["vår","spring"],["våren","the spring"],["sommar","summer"],["sommaren","the summer"],
+    ["höst","autumn"],["hösten","the autumn"],["idag","today"],["igår","yesterday"],["imorgon","tomorrow"],
+    ["helg","weekend"],["helgen","the weekend"],["semester","vacation"],["semestern","the vacation"],
+    // Body
+    ["kropp","body"],["kroppen","the body"],["huvud","head"],["huvudet","the head"],["ansikte","face"],["ansiktet","the face"],
+    ["öga","eye"],["ögat","the eye"],["ögon","eyes"],["öra","ear"],["örat","the ear"],["mun","mouth"],["munnen","the mouth"],
+    ["näsa","nose"],["näsan","the nose"],["hand","hand"],["handen","the hand"],["händer","hands"],["finger","finger"],
+    ["arm","arm"],["armen","the arm"],["ben","leg/bone"],["benet","the leg"],["fot","foot"],["foten","the foot"],["fötter","feet"],
+    ["rygg","back"],["ryggen","the back"],["mage","stomach"],["magen","the stomach"],["hjärta","heart"],["hjärtat","the heart"],
+    // Abstract & work
+    ["jobb","job"],["jobbet","the job"],["arbete","work"],["arbetet","the work"],["pengar","money"],["pengarna","the money"],
+    ["pris","price"],["priset","the price"],["konto","account"],["kontot","the account"],["bank","bank"],["banken","the bank"],
+    ["regering","government"],["regeringen","the government"],["lag","law/team"],["lagen","the law"],["regel","rule"],["regeln","the rule"],
+    ["rätt","right/dish"],["rätten","the right"],["plikt","duty"],["fri","free"],["frihet","freedom"],["friheten","the freedom"],
+    ["säkerhet","safety/security"],["fara","danger"],["faran","the danger"],["problem","problem"],["problemet","the problem"],
+    ["lösning","solution"],["lösningen","the solution"],["fråga","question"],["frågan","the question"],["svar","answer"],["svaret","the answer"],
+    ["ide","idea"],["idén","the idea"],["plan","plan"],["planen","the plan"],["resultat","result"],["resultatet","the result"],
+    ["orsak","cause"],["orsaken","the cause"],["effekt","effect"],["effekten","the effect"],
+    ["information","information"],["nyhet","news item"],["nyheter","news"],["tidning","newspaper"],["tidningen","the newspaper"],
+    ["bok","book"],["boken","the book"],["böcker","books"],["sida","page/side"],["sidan","the page"],
+    ["brev","letter"],["brevet","the letter"],["meddelande","message"],["meddelandet","the message"],
+    ["dator","computer"],["datorn","the computer"],["telefon","phone"],["telefonen","the phone"],["skärm","screen"],["skärmen","the screen"],
+    ["musik","music"],["musiken","the music"],["film","film"],["filmen","the film"],["bild","picture"],["bilden","the picture"],
+    ["bilder","pictures"],["foto","photo"],["fotot","the photo"],["konst","art"],["konsten","the art"],
+    ["sport","sport"],["sporten","the sport"],["match","match/game"],["matchen","the match"],
+    ["resa","trip/journey"],["resan","the trip"],["flykt","escape/flight"],
+    ["land","country"],["landet","the country"],["länder","countries"],["värld","world"],["världen","the world"],
+    ["historia","history/story"],["historien","the history"],["kultur","culture"],["kulturen","the culture"],
+    ["språk","language"],["språket","the language"],["ord","word"],["ordet","the word"],["text","text"],["texten","the text"],
+    ["fråga","question"],["sak","thing"],["saken","the thing"],["saker","things"],["del","part"],["delen","the part"],["delar","parts"],
+    ["plats","place"],["platsen","the place"],["ställe","place/spot"],["stället","the place"],
+    ["dröm","dream"],["drömmen","the dream"],["drömmar","dreams"],["liv","life"],["livet","the life"],
+    ["död","death"],["döden","the death"],["kärlek","love"],["kärleken","the love"],
+    ["lycka","happiness"],["lyckan","the happiness"],["sanning","truth"],["sanningen","the truth"],
+    ["kraft","power/force"],["kraften","the power"],["ljus","light"],["ljuset","the light"],["mörker","darkness"],["mörkret","the darkness"],
+  ]);
+
+  // ---- Adjectives (common forms) ----
+  add([
+    ["viktig","important"],["viktigt","important (n)"],["viktiga","important (pl/def)"],
+    ["möjlig","possible"],["möjligt","possible (n)"],["omöjlig","impossible"],
+    ["svår","difficult"],["svårt","difficult (n)"],["svåra","difficult (pl)"],
+    ["lätt","easy/light"],["enkel","simple"],["enkelt","simple (n)"],["enkla","simple (pl)"],
+    ["snabb","fast"],["snabbt","fast (n)"],["snabba","fast (pl)"],
+    ["långsam","slow"],["långsamt","slow (n)"],
+    ["vacker","beautiful"],["vackert","beautiful (n)"],["vackra","beautiful (pl)"],
+    ["ful","ugly"],["fult","ugly (n)"],
+    ["ung","young"],["ungt","young (n)"],["unga","young (pl)"],
+    ["varm","warm"],["varmt","warm (n)"],["varma","warm (pl)"],
+    ["kall","cold"],["kallt","cold (n)"],["kalla","cold (pl)"],
+    ["rik","rich"],["rikt","rich (n)"],["rika","rich (pl)"],
+    ["fattig","poor"],["fattigt","poor (n)"],["fattiga","poor (pl)"],
+    ["frisk","healthy"],["friskt","healthy (n)"],["sjuk","sick"],["sjukt","sick (n)"],["sjuka","sick (pl)"],
+    ["glad","happy"],["glatt","happy (n)"],["glada","happy (pl)"],
+    ["trött","tired"],["tröttt","tired (n)"],["trötta","tired (pl)"],
+    ["hungrig","hungry"],["hungrigt","hungry (n)"],["hungriga","hungry (pl)"],
+    ["törstig","thirsty"],
+    ["stark","strong"],["starkt","strong (n)"],["starka","strong (pl)"],
+    ["svag","weak"],["svagt","weak (n)"],
+    ["bred","wide"],["brett","wide (n)"],["breda","wide (pl)"],
+    ["smal","narrow"],["smalt","narrow (n)"],
+    ["djup","deep"],["djupt","deep (n)"],
+    ["tung","heavy"],["tungt","heavy (n)"],["tunga","heavy (pl)"],
+    ["tom","empty"],["tomt","empty (n)"],["tomma","empty (pl)"],
+    ["full","full"],["fullt","full (n)"],["fulla","full (pl)"],
+    ["öppen","open"],["öppet","open (n)"],["öppna","open (pl)"],
+    ["stängd","closed"],["stängt","closed (n)"],
+    ["farlig","dangerous"],["farligt","dangerous (n)"],
+    ["säker","safe/sure"],["säkert","safe/sure (n)"],["säkra","safe (pl)"],
+    ["billig","cheap"],["billigt","cheap (n)"],["billiga","cheap (pl)"],
+    ["dyr","expensive"],["dyrt","expensive (n)"],["dyra","expensive (pl)"],
+    ["gratis","free (no cost)"],
+    ["ren","clean"],["rent","clean (n)"],["rena","clean (pl)"],
+    ["smutsig","dirty"],["smutsigt","dirty (n)"],
+    ["torr","dry"],["torrt","dry (n)"],
+    ["våt","wet"],["vått","wet (n)"],
+    ["mörk","dark"],["mörkt","dark (n)"],["mörka","dark (pl)"],
+    ["ljus","light/bright"],["ljust","light (n)"],["ljusa","light (pl)"],
+    ["tyst","quiet"],["tysta","quiet (pl)"],
+    ["hög","loud/high"],["högt","loud (n)"],
+    ["rolig","funny/fun"],["roligt","fun (n)"],["roliga","fun (pl)"],
+    ["tråkig","boring"],["tråkigt","boring (n)"],
+    ["intressant","interesting"],["intressanta","interesting (pl)"],
+    ["annorlunda","different"],["liknande","similar"],
+    ["vanlig","common/usual"],["vanligt","usual (n)"],["vanliga","usual (pl)"],
+    ["ovanlig","unusual"],["ovanligt","unusual (n)"],
+    ["speciell","special"],["speciellt","special (n)"],
+    ["typisk","typical"],["typiskt","typical (n)"],
+    ["verklig","real"],["verkligt","real (n)"],
+    ["sann","true"],["sant","true (n)"],["falsk","false"],["falskt","false (n)"],
+    ["rätt","right/correct"],["fel","wrong"],
+    ["nödvändig","necessary"],["nödvändigt","necessary (n)"],
+    ["färdig","finished/ready"],["färdigt","finished (n)"],["färdiga","finished (pl)"],
+    ["beredd","prepared"],["berett","prepared (n)"],
+    ["ensam","alone/lonely"],["ensamt","alone (n)"],
+    ["egen","own"],["eget","own (n)"],["egna","own (pl)"],
+    ["hel","whole"],["helt","completely/whole (n)"],["hela","whole (pl/def)"],
+    ["halv","half"],["halvt","half (n)"],
+    ["sista","last"],["nästa","next"],["förra","previous"],
+    ["viss","certain"],["visst","certain (n)"],["vissa","certain (pl)"],
+    ["olika","different/various"],["samma","same"],
+    ["själv","self"],["självt","self (n)"],["själva","self (pl)"],
+  ]);
+
+  // ---- Verbs (additional common ones not in VERBS array) ----
+  add([
+    ["hjälpa","to help"],["hjälper","helps"],["hjälpte","helped"],["hjälpt","helped (sup)"],
+    ["visa","to show"],["visar","shows"],["visade","showed"],["visat","shown (sup)"],
+    ["sakna","to miss"],["saknar","misses"],["saknade","missed"],["saknat","missed (sup)"],
+    ["välja","to choose"],["väljer","chooses"],["valde","chose"],["valt","chosen (sup)"],
+    ["skicka","to send"],["skickar","sends"],["skickade","sent"],["skickat","sent (sup)"],
+    ["hämta","to fetch/pick up"],["hämtar","fetches"],["hämtade","fetched"],["hämtat","fetched (sup)"],
+    ["lämna","to leave/hand in"],["lämnar","leaves"],["lämnade","left"],["lämnat","left (sup)"],
+    ["flytta","to move"],["flyttar","moves"],["flyttade","moved"],["flyttat","moved (sup)"],
+    ["bestämma","to decide"],["bestämmer","decides"],["bestämde","decided"],["bestämt","decided (sup)"],
+    ["förändra","to change"],["förändrar","changes"],["förändrade","changed"],["förändrat","changed (sup)"],
+    ["påverka","to affect"],["påverkar","affects"],["påverkade","affected"],["påverkat","affected (sup)"],
+    ["utveckla","to develop"],["utvecklar","develops"],["utvecklade","developed"],["utvecklat","developed (sup)"],
+    ["upptäcka","to discover"],["upptäcker","discovers"],["upptäckte","discovered"],["upptäckt","discovered (sup)"],
+    ["undvika","to avoid"],["undviker","avoids"],["undvek","avoided"],["undvikit","avoided (sup)"],
+    ["hoppas","to hope"],["klara","to manage"],["klarar","manages"],["klarade","managed"],["klarat","managed (sup)"],
+    ["kosta","to cost"],["kostar","costs"],["kostade","cost (past)"],["kostat","cost (sup)"],
+    ["passa","to fit/suit"],["passar","fits"],["passade","fit (past)"],["passat","fit (sup)"],
+    ["byta","to change/swap"],["byter","swaps"],["bytte","swapped"],["bytt","swapped (sup)"],
+    ["vända","to turn"],["vänder","turns"],["vände","turned"],["vänt","turned (sup)"],
+    ["växa","to grow"],["växer","grows"],["växte","grew"],["växt","grown (sup)"],
+    ["dö","to die"],["dör","dies"],["dog","died"],["dött","died (sup)"],
+    ["springa","to run"],["springer","runs"],["sprang","ran"],["sprungit","run (sup)"],
+    ["simma","to swim"],["simmar","swims"],["simmade","swam"],["simmat","swum (sup)"],
+    ["sjunga","to sing"],["sjunger","sings"],["sjöng","sang"],["sjungit","sung (sup)"],
+    ["falla","to fall"],["faller","falls"],["föll","fell"],["fallit","fallen (sup)"],
+    ["hålla","to hold"],["håller","holds"],["höll","held"],["hållit","held (sup)"],
+    ["bära","to carry/wear"],["bär","carries"],["bar","carried"],["burit","carried (sup)"],
+    ["bryta","to break"],["bryter","breaks"],["bröt","broke"],["brutit","broken (sup)"],
+    ["döda","to kill"],["dödar","kills"],["dödade","killed"],["dödat","killed (sup)"],
+    ["samla","to collect"],["samlar","collects"],["samlade","collected"],["samlat","collected (sup)"],
+    ["diskutera","to discuss"],["diskuterar","discusses"],["diskuterade","discussed"],["diskuterat","discussed (sup)"],
+    ["presentera","to present"],["presenterar","presents"],["presenterade","presented"],["presenterat","presented (sup)"],
+    ["producera","to produce"],["producerar","produces"],["producerade","produced"],["producerat","produced (sup)"],
+    ["reagera","to react"],["reagerar","reacts"],["reagerade","reacted"],["reagerat","reacted (sup)"],
+    ["acceptera","to accept"],["accepterar","accepts"],["accepterade","accepted"],["accepterat","accepted (sup)"],
+    ["respektera","to respect"],["respekterar","respects"],["respekterade","respected"],["respekterat","respected (sup)"],
+    ["drömma","to dream"],["drömmer","dreams"],["drömde","dreamed"],["drömt","dreamed (sup)"],
+    ["skratta","to laugh"],["skrattar","laughs"],["skrattade","laughed"],["skrattat","laughed (sup)"],
+    ["gråta","to cry"],["gråter","cries"],["grät","cried"],["gråtit","cried (sup)"],
+    ["le","to smile"],["ler","smiles"],["log","smiled"],["lett","smiled (sup)"],
+    ["lukta","to smell"],["luktar","smells"],["luktade","smelled"],["luktat","smelled (sup)"],
+    ["smaka","to taste"],["smakar","tastes"],["smakade","tasted"],["smakat","tasted (sup)"],
+    ["röra","to touch/move"],["rör","touches"],["rörde","touched"],["rört","touched (sup)"],
+    ["tvinga","to force"],["tvingar","forces"],["tvingade","forced"],["tvingat","forced (sup)"],
+    ["tveka","to hesitate"],["tvekar","hesitates"],
+    ["missa","to miss (fail to)"],["missar","misses"],["missade","missed"],["missat","missed (sup)"],
+    ["vinna","to win"],["vinner","wins"],["vann","won"],["vunnit","won (sup)"],
+    ["förlora","to lose"],["förlorar","loses"],["förlorade","lost"],["förlorat","lost (sup)"],
+    ["översätta","to translate"],["översätter","translates"],["översatte","translated"],["översatt","translated (sup)"],
+    ["betyda","to mean"],["betyder","means"],["betydde","meant"],["betytt","meant (sup)"],
+    ["blanda","to mix"],["blandar","mixes"],["blandade","mixed"],["blandat","mixed (sup)"],
+    ["störa","to disturb"],["stör","disturbs"],["störde","disturbed"],["stört","disturbed (sup)"],
+    ["låna","to borrow/lend"],["lånar","borrows"],["lånade","borrowed"],["lånat","borrowed (sup)"],
+    ["städa","to clean"],["städar","cleans"],["städade","cleaned"],["städat","cleaned (sup)"],
+    ["tvätta","to wash"],["tvättar","washes"],["tvättade","washed"],["tvättat","washed (sup)"],
+    ["duscha","to shower"],["duschar","showers"],
+    ["bada","to bathe"],["badar","bathes"],["badade","bathed"],["badat","bathed (sup)"],
+    ["vakna","to wake up"],["vaknar","wakes"],["vaknade","woke"],["vaknat","woken (sup)"],
+    ["somna","to fall asleep"],["somnar","falls asleep"],["somnade","fell asleep"],["somnat","fallen asleep (sup)"],
+    ["orka","to have energy for"],["orkar","manages/can be bothered"],["orkade","managed"],["orkat","managed (sup)"],
+    ["lyckas","to succeed"],["lyckades","succeeded"],["lyckats","succeeded (sup)"],
+    ["misslyckas","to fail"],["misslyckades","failed"],["misslyckats","failed (sup)"],
+  ]);
+
+  // ---- Adverbs & connectors (additional) ----
+  add([
+    ["plötsligt","suddenly"],["snart","soon"],["genast","immediately"],["äntligen","finally"],
+    ["fortfarande","still"],["tidigare","earlier/previously"],["nyligen","recently"],["slutligen","finally"],
+    ["ungefär","approximately"],["nästan","almost"],["verkligen","really"],["antagligen","probably"],
+    ["naturligtvis","of course"],["uppenbarligen","obviously"],["förhoppningsvis","hopefully"],
+    ["vanligtvis","usually"],["normalt","normally"],["särskilt","especially"],["framför","in front of"],
+    ["bakom","behind"],["bredvid","next to"],["omkring","around"],["längs","along"],
+    ["överallt","everywhere"],["ingenstans","nowhere"],["någonstans","somewhere"],["annars","otherwise"],
+    ["istället","instead"],["tillsammans","together"],["ensam","alone"],["lagom","just right"],
+    ["ganska","quite/fairly"],["rätt","rather/quite"],["alldeles","completely"],["absolut","absolutely"],
+    ["möjligtvis","possibly"],["troligtvis","likely"],["tydligt","clearly"],["troligen","probably"],
+  ]);
+
+  return d;
+})();
+
+// Look up a word in the dictionary (returns english or null)
+function lookupWord(swedish) {
+  return DICTIONARY[swedish.toLowerCase()] || null;
 }
 
-// Extract candidate words from Swedish text
-function extractWords(text) {
-  return text
+// Extract learnable words from Swedish text — only returns words in the dictionary
+function extractLearnableWords(text) {
+  const words = text
     .replace(/[.,!?;:"""''()\[\]{}\/\\–—\-\d]/g, ' ')
     .split(/\s+/)
     .map(w => w.trim().toLowerCase())
     .filter(w => w.length > 1)
     .filter(w => !STOP_WORDS.has(w));
+
+  // Deduplicate
+  const unique = [...new Set(words)];
+
+  // Only keep words that are in the dictionary
+  const myWords = MyWordsStore.getAll();
+  const mySet = new Set(myWords.map(w => w.swedish.toLowerCase()));
+
+  // Check SRS mastery — skip words already mastered (box >= 5)
+  const srsData = SRS.load();
+
+  return unique
+    .map(w => ({ word: w, english: lookupWord(w) }))
+    .filter(entry => entry.english !== null) // must be in dictionary
+    .filter(entry => !mySet.has(entry.word)) // not already in My Words
+    .filter(entry => {
+      // Check if already mastered in any SRS card
+      const srsKey = `myword:${entry.word}`;
+      const card = srsData[srsKey];
+      return !card || card.box < 5; // show if not mastered
+    });
 }
 
 // ============================================================
@@ -1325,12 +1587,8 @@ function Discover({ onWordsAdded }) {
   };
 
   const analyze = () => {
-    const words = extractWords(text);
-    const unique = [...new Set(words)];
-    const myWords = MyWordsStore.getAll();
-    const mySet = new Set(myWords.map(w => w.swedish.toLowerCase()));
-    const unknown = unique.filter(w => !isWordKnown(w) && !mySet.has(w));
-    setCandidates(unknown.map(w => ({ word: w, translation: '', keep: true })));
+    const results = extractLearnableWords(text);
+    setCandidates(results.map(r => ({ word: r.word, translation: r.english, keep: true })));
     setAnalyzed(true);
     setSavedCount(0);
   };
@@ -1342,13 +1600,13 @@ function Discover({ onWordsAdded }) {
   const saveWords = () => {
     let count = 0;
     candidates.forEach(c => {
-      if (c.keep && c.translation.trim()) {
-        if (MyWordsStore.add(c.word, c.translation.trim(), text.slice(0, 200))) count++;
+      if (c.keep) {
+        if (MyWordsStore.add(c.word, c.translation, text.slice(0, 200))) count++;
       }
     });
     setSavedCount(count);
     if (onWordsAdded) onWordsAdded();
-    setCandidates(prev => prev.filter(c => !(c.keep && c.translation.trim())));
+    setCandidates(prev => prev.filter(c => !c.keep));
   };
 
   const reset = () => {
@@ -1428,7 +1686,7 @@ function Discover({ onWordsAdded }) {
           ) : (
             <div>
               <div className="flex items-center justify-between mb-4">
-                <p className="text-sm text-gray-400">Found <span className="text-white font-medium">{candidates.length}</span> word{candidates.length !== 1 ? 's' : ''} to learn. Add the English translation for each:</p>
+                <p className="text-sm text-gray-400">Found <span className="text-white font-medium">{candidates.length}</span> word{candidates.length !== 1 ? 's' : ''} to learn. Uncheck any you don't want:</p>
                 <button onClick={reset} className="text-xs text-gray-500 hover:text-gray-300">Start over</button>
               </div>
 
@@ -1444,11 +1702,8 @@ function Discover({ onWordsAdded }) {
                       <SpeakButton text={c.word} size="sm" />
                     </div>
                     <span className="text-gray-600">=</span>
-                    <input type="text" value={c.translation}
-                      onChange={e => updateCandidate(i, 'translation', e.target.value)}
-                      placeholder="English translation"
-                      className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
-                      autoComplete="off" autoCorrect="off" />
+                    <span className="text-gray-300 text-sm">{c.translation}</span>
+                    <div className="flex-1" />
                     <button onClick={() => setCandidates(prev => prev.filter((_, j) => j !== i))}
                       className="text-gray-600 hover:text-red-400 text-xs flex-shrink-0">&times;</button>
                   </div>
@@ -1457,9 +1712,9 @@ function Discover({ onWordsAdded }) {
 
               <div className="flex gap-3">
                 <button onClick={saveWords}
-                  disabled={!candidates.some(c => c.keep && c.translation.trim())}
+                  disabled={!candidates.some(c => c.keep)}
                   className="flex-1 py-2.5 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-sm font-medium transition-colors">
-                  Save to My Words
+                  Save {candidates.filter(c => c.keep).length} to My Words
                 </button>
               </div>
             </div>
